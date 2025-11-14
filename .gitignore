@@ -1,0 +1,52 @@
+powershell# -------------------------------------------------
+# 1. Initialise repo (only needed the first time)
+git init
+
+# -------------------------------------------------
+# 2. Create a bullet‑proof .gitignore for Django + DRF + MySQL
+@"
+# === Python / Django ===
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.sqlite3
+db.sqlite3
+*.log
+.env
+.env.*
+.local
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Django static / media (never commit large files)
+media/
+staticfiles/
+static/
+*.bak
+
+# IDE / Editor
+.vscode/
+.idea/
+*.sublime-*
+
+# Migrations (keep them, but ignore auto‑generated ones if you want)
+# */migrations/__pycache__/
+
+# MySQL / Database dumps (never commit real data)
+*.sql
+dump*.sql
+
+# DRF / API
+*.csv   # if you generate CSVs locally
+*.xlsx
+
+# Node / Frontend (if you have any)
+node_modules/
+dist/
+build/
+"@
