@@ -1,0 +1,76 @@
+from rest_framework import serializers
+from .models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core import exceptions
+
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    password2 = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ["username", "email", "phone", "user_type", "password", "password2"]
+
+    def validate(self, data):
+        if data["password"] != data["password2"]:
+            raise serializers.ValidationError({"password": "Passwords must match."})
+        return data
+
+    def create(self, validated_data):
+        validated_data.pop("password2")
+        user = User.objects.create_user(
+            username=validated_data["username"],
+            email=validated_data.get("email", ""),
+            phone=validated_data.get("phone", ""),
+            user_type=validated_data.get("user_type", "guest"),
+            password=validated_data["password"],
+        )
+        user.status = "active"  # default
+        user.save()
+        return user
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        from django.contrib.auth import authenticate
+
+        user = authenticate(username=data["username"], password=data["password"])
+        if not user:
+            raise serializers.ValidationError("Invalid credentials.")
+
+        if user.status != "active":
+            raise serializers.ValidationError(
+                f"Account is {user.status}. Contact admin."
+            )
+
+        if not user.is_active:
+            raise serializers.ValidationError("Account is disabled.")
+
+        data["user"] = user
+        return data
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=False)
+    phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = ["email", "phone", "first_name", "last_name"]
+
+    def validate(self, data):
+        return data
+
+    def update(self, instance, validated_data):
+        instance.email = validated_data.get("email", instance.email)
+        instance.phone = validated_data.get("phone", instance.phone)
+        instance.first_name = validated_data.get("first_name", instance.first_name)
+        instance.last_name = validated_data.get("last_name", instance.last_name)
+        instance.save()
+        return instance
