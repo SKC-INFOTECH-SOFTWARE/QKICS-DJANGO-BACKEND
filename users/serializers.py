@@ -3,7 +3,7 @@ from .models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core import exceptions
 
-
+# Register Serializer
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True)
@@ -30,7 +30,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
-
+# Login Serializer
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -54,6 +54,7 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 
+# Update Serializer
 class UserUpdateSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False)
     phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
@@ -74,3 +75,27 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         instance.last_name = validated_data.get("last_name", instance.last_name)
         instance.save()
         return instance
+
+
+# Password Change Serializer
+class PasswordChangeSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    new_password2 = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['new_password2']:
+            raise serializers.ValidationError({"new_password": "Passwords must match."})
+        return data
+
+    def validate_old_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Old password is incorrect.")
+        return value
+
+    def save(self):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
