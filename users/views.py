@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from users.models import User
 from .serializers import (
     RegisterSerializer,
@@ -11,14 +11,18 @@ from .serializers import (
     LogoutSerializer,
 )
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated
 
 
-# Register API
+# ────────────────────── REGISTER API ──────────────────────
 class RegisterAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        """
+        Register a new user.
+        Required: username, user_type (normal/entrepreneur/expert/investor), password
+        Returns: user_id, username, user_type, is_verified (False)
+        """
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -28,17 +32,22 @@ class RegisterAPIView(APIView):
                     "user_id": user.id,
                     "username": user.username,
                     "user_type": user.user_type,
+                    "is_verified": user.is_verified, 
                 },
                 status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# Login API
+# ────────────────────── LOGIN API ──────────────────────
 class LoginAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        """
+        Login user and return JWT tokens + user info.
+        Blocks inactive/suspended users.
+        """
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data["user"]
@@ -52,6 +61,7 @@ class LoginAPIView(APIView):
                         "username": user.username,
                         "user_type": user.user_type,
                         "status": user.status,
+                        "is_verified": user.is_verified,
                     },
                 },
                 status=status.HTTP_200_OK,
@@ -59,11 +69,14 @@ class LoginAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
 
 
-# Update User API patch
+# ────────────────────── UPDATE PROFILE API ──────────────────────
 class UserUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request):
+        """
+        Update logged-in user's profile (email, phone, name)
+        """
         serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             user = serializer.save()
@@ -79,6 +92,7 @@ class UserUpdateAPIView(APIView):
                         "last_name": user.last_name,
                         "user_type": user.user_type,
                         "status": user.status,
+                        "is_verified": user.is_verified,
                     },
                 },
                 status=status.HTTP_200_OK,
@@ -86,23 +100,28 @@ class UserUpdateAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# Change Password API
+# ────────────────────── CHANGE PASSWORD API ──────────────────────
 class PasswordChangeAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        """
+        Change password for logged-in user.
+        Requires old password.
+        """
         serializer = PasswordChangeSerializer(
             data=request.data, context={"request": request}
         )
         if serializer.is_valid():
             serializer.save()
             return Response(
-                {"message": "Password changed successfully."}, status=status.HTTP_200_OK
+                {"message": "Password changed successfully."},
+                status=status.HTTP_200_OK,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# Username Check API
+# ────────────────────── CHECK USERNAME AVAILABILITY ──────────────────────
 class UsernameCheckAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -126,7 +145,7 @@ class UsernameCheckAPIView(APIView):
         )
 
 
-# Email Check API
+# ────────────────────── CHECK EMAIL AVAILABILITY ──────────────────────
 class EmailCheckAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -138,7 +157,6 @@ class EmailCheckAPIView(APIView):
                 {"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Basic email format check
         if "@" not in email or "." not in email.split("@")[-1]:
             return Response(
                 {"error": "Invalid email format."}, status=status.HTTP_400_BAD_REQUEST
@@ -150,7 +168,7 @@ class EmailCheckAPIView(APIView):
         )
 
 
-# Phone Check API
+# ────────────────────── CHECK PHONE AVAILABILITY ──────────────────────
 class PhoneCheckAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -163,7 +181,6 @@ class PhoneCheckAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Basic validation: 10 digits only (India)
         if not phone.isdigit() or len(phone) != 10:
             return Response(
                 {"error": "Phone must be 10 digits (India only)."},
@@ -176,22 +193,25 @@ class PhoneCheckAPIView(APIView):
         )
 
 
+# ────────────────────── LOGOUT API (BLACKLIST REFRESH TOKEN) ──────────────────────
 class LogoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        """
+        Blacklist refresh token to log out.
+        In dev: disable blacklist in settings for testing.
+        """
         serializer = LogoutSerializer(data=request.data)
         if serializer.is_valid():
             try:
                 token = serializer.validated_data["refresh"]
-                from rest_framework_simplejwt.tokens import RefreshToken
-
                 refresh_token = RefreshToken(token)
                 refresh_token.blacklist()
                 return Response(
                     {"message": "Successfully logged out."}, status=status.HTTP_200_OK
                 )
-            except Exception as e:
+            except Exception:
                 return Response(
                     {"error": "Token is already blacklisted or invalid."},
                     status=status.HTTP_400_BAD_REQUEST,

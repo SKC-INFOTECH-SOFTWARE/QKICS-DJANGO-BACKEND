@@ -1,45 +1,61 @@
 from rest_framework import serializers
 from .models import User
 from django.contrib.auth.password_validation import validate_password
-from django.core import exceptions
+from django.contrib.auth import authenticate
 
 
-# Register Serializer
+# ────────────────────── REGISTER SERIALIZER ──────────────────────
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    password2 = serializers.CharField(write_only=True)
+    password = serializers.CharField(
+        write_only=True,
+        validators=[validate_password],
+        help_text="Password (min 8 chars, not too common)",
+    )
+    password2 = serializers.CharField(write_only=True, help_text="Confirm password")
+    user_type = serializers.ChoiceField(
+        choices=[
+            ("normal", "Normal User"),
+            ("entrepreneur", "Entrepreneur"),
+            ("expert", "Expert"),
+            ("investor", "Investor"),
+        ],
+        required=True,
+        help_text="Choose your role on the platform",
+    )
 
     class Meta:
         model = User
         fields = ["username", "email", "phone", "user_type", "password", "password2"]
 
     def validate(self, data):
+        """Ensure passwords match"""
         if data["password"] != data["password2"]:
             raise serializers.ValidationError({"password": "Passwords must match."})
         return data
 
     def create(self, validated_data):
+        """Create user with selected role and pending verification"""
         validated_data.pop("password2")
         user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data.get("email", ""),
             phone=validated_data.get("phone", ""),
-            user_type=validated_data.get("user_type", "guest"),
+            user_type=validated_data["user_type",],
             password=validated_data["password"],
         )
-        user.status = "active"  # default
+        user.status = "active"
+        user.is_verified = False
         user.save()
         return user
 
 
-# Login Serializer
+# ────────────────────── LOGIN SERIALIZER ──────────────────────
 class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
+    username = serializers.CharField(help_text="Username or email")
+    password = serializers.CharField(write_only=True, help_text="Password")
 
     def validate(self, data):
-        from django.contrib.auth import authenticate
-
+        """Authenticate + check account status"""
         user = authenticate(username=data["username"], password=data["password"])
         if not user:
             raise serializers.ValidationError("Invalid credentials.")
@@ -56,7 +72,7 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 
-# Update Serializer
+# ────────────────────── PROFILE UPDATE SERIALIZER ──────────────────────
 class UserUpdateSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False)
     phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
@@ -67,10 +83,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         model = User
         fields = ["email", "phone", "first_name", "last_name"]
 
-    def validate(self, data):
-        return data
-
     def update(self, instance, validated_data):
+        """Update only allowed fields"""
         instance.email = validated_data.get("email", instance.email)
         instance.phone = validated_data.get("phone", instance.phone)
         instance.first_name = validated_data.get("first_name", instance.first_name)
@@ -79,7 +93,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         return instance
 
 
-# Password Change Serializer
+# ────────────────────── PASSWORD CHANGE SERIALIZER ──────────────────────
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(
@@ -105,7 +119,7 @@ class PasswordChangeSerializer(serializers.Serializer):
         return user
 
 
-# Logout Serializer
+# ────────────────────── LOGOUT SERIALIZER ──────────────────────
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField(required=True)
 
