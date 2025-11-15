@@ -3,6 +3,7 @@ from .models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core import exceptions
 
+
 # Register Serializer
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -29,6 +30,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.status = "active"  # default
         user.save()
         return user
+
 
 # Login Serializer
 class LoginSerializer(serializers.Serializer):
@@ -80,22 +82,38 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 # Password Change Serializer
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
-    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    new_password = serializers.CharField(
+        write_only=True, validators=[validate_password]
+    )
     new_password2 = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        if data['new_password'] != data['new_password2']:
+        if data["new_password"] != data["new_password2"]:
             raise serializers.ValidationError({"new_password": "Passwords must match."})
         return data
 
     def validate_old_password(self, value):
-        user = self.context['request'].user
+        user = self.context["request"].user
         if not user.check_password(value):
             raise serializers.ValidationError("Old password is incorrect.")
         return value
 
     def save(self):
-        user = self.context['request'].user
-        user.set_password(self.validated_data['new_password'])
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
         user.save()
         return user
+
+
+# Logout Serializer
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(required=True)
+
+    def validate_refresh(self, value):
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        try:
+            RefreshToken(value)
+        except Exception:
+            raise serializers.ValidationError("Invalid or expired refresh token.")
+        return value
