@@ -23,6 +23,7 @@ INSTALLED_APPS = [
 
     "users",
     "research",
+    "community",
 ]
 ROOT_URLCONF = "rplatform.urls"
 MIDDLEWARE = [
