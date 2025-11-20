@@ -40,7 +40,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             username=validated_data["username"],
             email=validated_data.get("email", ""),
             phone=validated_data.get("phone", ""),
-            user_type=validated_data["user_type",],
+            user_type=validated_data["user_type"],
             password=validated_data["password"],
         )
         user.status = "active"

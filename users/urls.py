@@ -8,6 +8,8 @@ from .views import (
     EmailCheckAPIView,
     PhoneCheckAPIView,
     LogoutAPIView,
+    AdminUserListAPIView,
+    AdminVerifyUserAPIView,
 )
 
 urlpatterns = [
@@ -21,4 +23,9 @@ urlpatterns = [
     path("check-email/", EmailCheckAPIView.as_view(), name="check-email"),
     path("check-phone/", PhoneCheckAPIView.as_view(), name="check-phone"),
     path("logout/", LogoutAPIView.as_view(), name="logout"),
+    
+    
+    # ← ADMIN APIs
+    path('admin/users/', AdminUserListAPIView.as_view(), name='admin-user-list'),
+    path('admin/verify-user/<int:user_id>/', AdminVerifyUserAPIView.as_view(), name='admin-verify-user'),
 ]

@@ -8,7 +8,7 @@ SECRET_KEY = config(
     "SECRET_KEY", default="6#11!i(e3nn9z=#hr(e$m$o5tw8lslnscix@vlw9ggd6#*j_=1"
 )
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -19,9 +19,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
-    'rest_framework_simplejwt.token_blacklist',
+    "rest_framework_simplejwt.token_blacklist",
     
     "users",
+    "research",
 ]
 
 MIDDLEWARE = [

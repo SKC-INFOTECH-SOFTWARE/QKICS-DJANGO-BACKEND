@@ -2,6 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from .permissions import IsAdminUser
+
 from users.models import User
 from .serializers import (
     RegisterSerializer,
@@ -32,7 +34,7 @@ class RegisterAPIView(APIView):
                     "user_id": user.id,
                     "username": user.username,
                     "user_type": user.user_type,
-                    "is_verified": user.is_verified, 
+                    "is_verified": user.is_verified,
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -217,3 +219,56 @@ class LogoutAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ────────────────────── Admin User List API ──────────────────────
+class AdminUserListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        users = User.objects.all().order_by("-created_at")
+        data = [
+            {
+                "id": u.id,
+                "username": u.username,
+                "email": u.email,
+                "phone": u.phone,
+                "user_type": u.get_user_type_display(),
+                "is_verified": u.is_verified,
+                "created_at": u.created_at.strftime("%Y-%m-%d %H:%M"),
+            }
+            for u in users
+        ]
+        return Response({"users": data}, status=status.HTTP_200_OK)
+
+
+# ────────────────────── Admin Verify User API ──────────────────────
+class AdminVerifyUserAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def patch(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        action = request.data.get("action")
+        if action not in ["approve", "reject"]:
+            return Response(
+                {"error": "action must be 'approve' or 'reject'"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.is_verified = action == "approve"
+        user.save()
+
+        return Response(
+            {
+                "message": f"User {user.username} has been {action}d.",
+                "user_id": user.id,
+                "is_verified": user.is_verified,
+            },
+            status=status.HTTP_200_OK,
+        )
