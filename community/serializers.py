@@ -64,8 +64,8 @@ class CommentSerializer(serializers.ModelSerializer):
 class PostSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     comments = CommentSerializer(many=True, read_only=True, source="top_level_comments")
-    total_likes = serializers.IntegerField(source="total_likes", read_only=True)
-    total_comments = serializers.IntegerField(source="total_comments", read_only=True)
+    total_likes = serializers.IntegerField(read_only=True)
+    total_comments = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
 
     class Meta:
@@ -91,9 +91,15 @@ class PostSerializer(serializers.ModelSerializer):
 
 
 class PostCreateSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(required=False, allow_null=True)
+
     class Meta:
         model = Post
         fields = ["title", "content", "image"]
+        extra_kwargs = {
+            "title": {"required": False, "allow_blank": True},
+            "content": {"required": True},
+        }
 
 
 class CommentCreateSerializer(serializers.ModelSerializer):

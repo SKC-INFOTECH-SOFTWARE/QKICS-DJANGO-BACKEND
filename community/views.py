@@ -9,7 +9,7 @@ from .serializers import (
     PostSerializer, PostCreateSerializer,
     CommentCreateSerializer, CommentSerializer
 )
-
+from users.permissions import IsAdmin
 
 class PostListCreateView(APIView):
     permission_classes = [AllowAny]

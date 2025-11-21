@@ -2,14 +2,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from users.permissions import IsAdminUser
+from users.permissions import IsExpert, IsEntrepreneur
 from .models import EntrepreneurProfile, ExpertProfile
 from .serializers import EntrepreneurProfileSerializer, ExpertProfileSerializer
 from rest_framework.permissions import AllowAny
 
 # ────────────────────── ENTREPRENEUR PROFILE ──────────────────────
 class EntrepreneurProfileAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsEntrepreneur]
 
     def get(self, request):
         """Get logged-in user's entrepreneur profile"""
@@ -56,7 +56,7 @@ class EntrepreneurProfileAPIView(APIView):
 
 # ────────────────────── EXPERT PROFILE ──────────────────────
 class ExpertProfileAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsExpert]
 
     def get(self, request):
         try:

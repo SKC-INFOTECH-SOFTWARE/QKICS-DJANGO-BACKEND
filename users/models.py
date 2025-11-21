@@ -26,32 +26,31 @@ class User(AbstractUser):
         max_length=20,
         choices=USER_TYPES,
         default="normal",
-        help_text="User role in the platform"
+        help_text="User role in the platform",
     )
     status = models.CharField(
         max_length=10,
         choices=STATUS_CHOICES,
         default="active",
-        help_text="Account status"
+        help_text="Account status",
     )
     is_verified = models.BooleanField(
-        default=False,
-        help_text="True if admin has verified the user"
+        default=False, help_text="True if admin has verified the user"
+    )
+    email = models.EmailField(
+        unique=True, blank=True, null=True, help_text="Unique email address"
     )
     phone = models.CharField(
         max_length=15,
+        unique=True,
         blank=True,
         null=True,
-        help_text="10-digit Indian mobile number"
+        help_text="Unique 10-digit Indian mobile number",
     )
     created_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Account creation time (IST)"
+        auto_now_add=True, help_text="Account creation time (IST)"
     )
-    updated_at = models.DateTimeField(
-        auto_now=True,
-        help_text="Last update time (IST)"
-    )
+    updated_at = models.DateTimeField(auto_now=True, help_text="Last update time (IST)")
 
     # ────────────────────── METHODS ──────────────────────
     def is_active_user(self):

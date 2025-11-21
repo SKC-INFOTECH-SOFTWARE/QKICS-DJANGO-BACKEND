@@ -2,7 +2,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .permissions import IsAdminUser
+from .permissions import IsAdmin
+from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
 from users.models import User
 from .serializers import (
@@ -46,29 +48,58 @@ class LoginAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        """
-        Login user and return JWT tokens + user info.
-        Blocks inactive/suspended users.
-        """
         serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data["user"]
-            refresh = RefreshToken.for_user(user)
-            return Response(
-                {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                    "user": {
-                        "id": user.id,
-                        "username": user.username,
-                        "user_type": user.user_type,
-                        "status": user.status,
-                        "is_verified": user.is_verified,
-                    },
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        user = serializer.validated_data["user"]
+        refresh = RefreshToken.for_user(user)
+        response = Response(
+            {
+                "message": "Login successful",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "user_type": user.user_type,
+                    "is_verified": user.is_verified,
                 },
-                status=status.HTTP_200_OK,
-            )
-        return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+                "access": str(refresh.access_token),
+            },
+            status=status.HTTP_200_OK,
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=str(refresh),
+            httponly=True,
+            secure=False,
+            samesite="Lax",
+            max_age=30 * 24 * 60 * 60,  # 30 days
+            path="/",
+        )
+        return response
+
+
+# ────────────────────── GET PROFILE API ──────────────────────
+class GetMyProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response(
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "phone": user.phone,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "user_type": user.user_type,
+                "status": user.status,
+                "is_verified": user.is_verified,
+                "created_at": user.created_at.strftime("%Y-%m-%d %H:%M"),
+                "updated_at": user.updated_at.strftime("%Y-%m-%d %H:%M"),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 # ────────────────────── UPDATE PROFILE API ──────────────────────
@@ -197,33 +228,29 @@ class PhoneCheckAPIView(APIView):
 
 # ────────────────────── LOGOUT API (BLACKLIST REFRESH TOKEN) ──────────────────────
 class LogoutAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request):
-        """
-        Blacklist refresh token to log out.
-        In dev: disable blacklist in settings for testing.
-        """
-        serializer = LogoutSerializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                token = serializer.validated_data["refresh"]
-                refresh_token = RefreshToken(token)
-                refresh_token.blacklist()
-                return Response(
-                    {"message": "Successfully logged out."}, status=status.HTTP_200_OK
-                )
-            except Exception:
-                return Response(
-                    {"error": "Token is already blacklisted or invalid."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            refresh_token = request.COOKIES.get("refresh_token")
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+
+            response = Response(
+                {"message": "Logged out successfully"}, status=status.HTTP_200_OK
+            )
+            response.delete_cookie("refresh_token")
+            return response
+        except Exception:
+            return Response(
+                {"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 # ────────────────────── Admin User List API ──────────────────────
 class AdminUserListAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdmin]
 
     def get(self, request):
         users = User.objects.all().order_by("-created_at")
@@ -244,7 +271,7 @@ class AdminUserListAPIView(APIView):
 
 # ────────────────────── Admin Verify User API ──────────────────────
 class AdminVerifyUserAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdmin]
 
     def patch(self, request, user_id):
         try:
@@ -272,3 +299,36 @@ class AdminVerifyUserAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class CookieTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        # 1. Read refresh token from HttpOnly cookie
+        refresh_token = request.COOKIES.get("refresh_token")
+
+        if refresh_token:
+            # Inject into request.data (immutable → must use _full_data)
+            mutable_data = request.data.copy()
+            mutable_data["refresh"] = refresh_token
+            request._full_data = mutable_data
+
+        # 2. Fallback for testing (optional — safe to keep)
+        elif not request.data.get("refresh"):
+            return Response({"error": "Refresh token required"}, status=400)
+
+        try:
+            response = super().post(request, *args, **kwargs)
+
+            # ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ←
+            # FINAL FIX: REMOVE refresh token from response
+            if "refresh" in response.data:
+                del response.data["refresh"]   # ← NEVER SEND NEW REFRESH TOKEN
+            # ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ←
+
+            return response
+
+        except (InvalidToken, TokenError):
+            return Response(
+                {"error": "Invalid or expired refresh token"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )

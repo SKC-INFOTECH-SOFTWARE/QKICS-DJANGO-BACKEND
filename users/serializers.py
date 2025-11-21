@@ -74,18 +74,18 @@ class LoginSerializer(serializers.Serializer):
 
 # ────────────────────── PROFILE UPDATE SERIALIZER ──────────────────────
 class UserUpdateSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(required=False)
+    # email = serializers.EmailField(required=False)
     phone = serializers.CharField(max_length=15, required=False, allow_blank=True)
     first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ["email", "phone", "first_name", "last_name"]
+        fields = [ "phone", "first_name", "last_name"] # "email",
 
     def update(self, instance, validated_data):
         """Update only allowed fields"""
-        instance.email = validated_data.get("email", instance.email)
+        # instance.email = validated_data.get("email", instance.email)
         instance.phone = validated_data.get("phone", instance.phone)
         instance.first_name = validated_data.get("first_name", instance.first_name)
         instance.last_name = validated_data.get("last_name", instance.last_name)
@@ -131,3 +131,17 @@ class LogoutSerializer(serializers.Serializer):
         except Exception:
             raise serializers.ValidationError("Invalid or expired refresh token.")
         return value
+
+
+def validate(self, data):
+    if data["password"] != data["password2"]:
+        raise serializers.ValidationError({"password": "Passwords must match."})
+
+    # Optional: extra safety (DB will still catch it)
+    if User.objects.filter(email__iexact=data.get("email", "")).exists():
+        raise serializers.ValidationError({"email": "This email is already registered."})
+
+    if User.objects.filter(phone=data.get("phone")).exists():
+        raise serializers.ValidationError({"phone": "This phone number is already registered."})
+
+    return data
