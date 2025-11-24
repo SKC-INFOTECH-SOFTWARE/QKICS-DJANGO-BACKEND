@@ -4,8 +4,10 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 # Allow everything in development (React + Flutter)
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = "None"
 
 # Allow common local development IPs
 CORS_ALLOWED_ORIGIN_REGEXES = [

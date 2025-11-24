@@ -303,32 +303,25 @@ class AdminVerifyUserAPIView(APIView):
 
 class CookieTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
-        # 1. Read refresh token from HttpOnly cookie
         refresh_token = request.COOKIES.get("refresh_token")
 
         if refresh_token:
-            # Inject into request.data (immutable → must use _full_data)
-            mutable_data = request.data.copy()
-            mutable_data["refresh"] = refresh_token
-            request._full_data = mutable_data
-
-        # 2. Fallback for testing (optional — safe to keep)
+            data = request.data.copy()
+            data["refresh"] = refresh_token
+            request._full_data = data
         elif not request.data.get("refresh"):
-            return Response({"error": "Refresh token required"}, status=400)
+            return Response(
+                {"error": "Refresh token required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             response = super().post(request, *args, **kwargs)
-
-            # ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ←
-            # FINAL FIX: REMOVE refresh token from response
-            if "refresh" in response.data:
-                del response.data["refresh"]   # ← NEVER SEND NEW REFRESH TOKEN
-            # ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ← ←
-
+            response.data.pop("refresh", None)
             return response
 
         except (InvalidToken, TokenError):
             return Response(
                 {"error": "Invalid or expired refresh token"},
-                status=status.HTTP_401_UNAUTHORIZED
+                status=status.HTTP_401_UNAUTHORIZED,
             )
