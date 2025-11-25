@@ -22,12 +22,19 @@ class AuthorSerializer(serializers.ModelSerializer):
 
 class ReplySerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
-    total_likes = serializers.IntegerField(source="total_likes", read_only=True)
+    total_likes = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
-        fields = ["id", "author", "content", "total_likes", "is_liked", "created_at"]
+        fields = [
+            "id",
+            "author",
+            "content",
+            "total_likes",
+            "is_liked",
+            "created_at",
+        ]
 
     def get_is_liked(self, obj):
         user = self.context["request"].user
@@ -37,7 +44,7 @@ class ReplySerializer(serializers.ModelSerializer):
 class CommentSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     replies = ReplySerializer(many=True, read_only=True)
-    total_likes = serializers.IntegerField(source="total_likes", read_only=True)
+    total_likes = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
     depth = serializers.IntegerField(read_only=True)
 
@@ -83,7 +90,6 @@ class PostSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["created_at", "updated_at"]
 
     def get_is_liked(self, obj):
         user = self.context["request"].user
@@ -96,10 +102,6 @@ class PostCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = ["title", "content", "image"]
-        extra_kwargs = {
-            "title": {"required": False, "allow_blank": True},
-            "content": {"required": True},
-        }
 
 
 class CommentCreateSerializer(serializers.ModelSerializer):
