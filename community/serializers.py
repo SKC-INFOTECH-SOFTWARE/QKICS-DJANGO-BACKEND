@@ -1,8 +1,11 @@
 from rest_framework import serializers
-from .models import Post, Comment
+from .models import Post, Comment, Tag
 from users.models import User
 
 
+# ---------------------------
+# AUTHOR
+# ---------------------------
 class AuthorSerializer(serializers.ModelSerializer):
     user_type_display = serializers.CharField(
         source="get_user_type_display", read_only=True
@@ -20,6 +23,18 @@ class AuthorSerializer(serializers.ModelSerializer):
         ]
 
 
+# ---------------------------
+# TAG SERIALIZER
+# ---------------------------
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ["id", "name", "slug"]
+
+
+# ---------------------------
+# REPLY SERIALIZER
+# ---------------------------
 class ReplySerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
@@ -41,6 +56,9 @@ class ReplySerializer(serializers.ModelSerializer):
         return user.is_authenticated and obj.comment_likes.filter(user=user).exists()
 
 
+# ---------------------------
+# COMMENT SERIALIZER
+# ---------------------------
 class CommentSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     replies = ReplySerializer(many=True, read_only=True)
@@ -68,9 +86,13 @@ class CommentSerializer(serializers.ModelSerializer):
         return user.is_authenticated and obj.comment_likes.filter(user=user).exists()
 
 
+# ---------------------------
+# POST SERIALIZER (SHOW TAGS)
+# ---------------------------
 class PostSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     comments = CommentSerializer(many=True, read_only=True, source="top_level_comments")
+    tags = TagSerializer(many=True, read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
     total_comments = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
@@ -83,6 +105,7 @@ class PostSerializer(serializers.ModelSerializer):
             "title",
             "content",
             "image",
+            "tags",
             "total_likes",
             "total_comments",
             "is_liked",
@@ -96,14 +119,47 @@ class PostSerializer(serializers.ModelSerializer):
         return user.is_authenticated and obj.post_likes.filter(user=user).exists()
 
 
+# ---------------------------
+# POST CREATE / UPDATE SERIALIZER (ACCEPT TAG IDs)
+# ---------------------------
 class PostCreateSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(required=False, allow_null=True)
+    tags = serializers.ListField(
+        child=serializers.IntegerField(), required=False, allow_empty=True
+    )
 
     class Meta:
         model = Post
-        fields = ["title", "content", "image"]
+        fields = ["title", "content", "image", "tags"]
+
+    def validate_tags(self, value):
+        if not value:
+            return []
+
+        valid_ids = list(Tag.objects.filter(id__in=value).values_list("id", "name"))
+        if len(valid_ids) != len(set(value)):
+            raise serializers.ValidationError("Invalid tag IDs provided.")
+
+        return value
+
+    def create(self, validated_data):
+        tag_ids = validated_data.pop("tags", [])
+        post = Post.objects.create(**validated_data)
+        if tag_ids:
+            post.tags.set(tag_ids)
+        return post
+
+    def update(self, instance, validated_data):
+        tag_ids = validated_data.pop("tags", None)
+        post = super().update(instance, validated_data)
+        if tag_ids is not None:
+            post.tags.set(tag_ids)
+        return post
 
 
+# ---------------------------
+# COMMENT CREATE SERIALIZER
+# ---------------------------
 class CommentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment

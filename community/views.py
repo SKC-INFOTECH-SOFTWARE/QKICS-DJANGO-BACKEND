@@ -1,24 +1,110 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import (
+    IsAuthenticated,
+    AllowAny,
+    IsAuthenticatedOrReadOnly,
+)
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from .models import Post, Comment, Like
+from .models import Post, Comment, Like, Tag
 from .serializers import (
     PostSerializer,
     PostCreateSerializer,
     CommentCreateSerializer,
     CommentSerializer,
+    TagSerializer,
 )
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
 
+# ---------------------------
+# TAG LIST + CREATE (Admin Only for Create)
+# ---------------------------
+class TagListCreateView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request):
+        tags = Tag.objects.all().order_by("name")
+        return Response(TagSerializer(tags, many=True).data)
+
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return Response({"error": "Authentication required"}, status=401)
+
+        if request.user.user_type not in ["admin", "superadmin"]:
+            return Response({"error": "Only admins can create tags"}, status=403)
+
+        serializer = TagSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+
+# ---------------------------
+# FILTER POSTS BY TAG
+# ---------------------------
+class PostByTagView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request, slug):
+        tag = get_object_or_404(Tag, slug=slug)
+        posts = (
+            Post.objects.filter(tags=tag)
+            .select_related("author")
+            .prefetch_related(
+                "post_likes",
+                "comments__author",
+                "comments__replies__author",
+                "comments__comment_likes",
+                "comments__replies__comment_likes",
+            )
+        )
+        return Response(
+            PostSerializer(posts, many=True, context={"request": request}).data
+        )
+
+
+# ---------------------------
+# TAG UPDATE & DELETE (Admin Only)
+# ---------------------------
+class TagDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, id):
+        return get_object_or_404(Tag, id=id)
+
+    def put(self, request, id):
+        if request.user.user_type not in ["admin", "superadmin"]:
+            return Response({"error": "Only admins can update tags"}, status=403)
+
+        tag = self.get_object(id)
+        serializer = TagSerializer(tag, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=400)
+
+    def delete(self, request, id):
+        if request.user.user_type not in ["admin", "superadmin"]:
+            return Response({"error": "Only admins can delete tags"}, status=403)
+
+        tag = self.get_object(id)
+        tag.delete()
+        return Response(status=204)
+
+
+# ---------------------------
 # POST LIST + CREATE
+# ---------------------------
 class PostListCreateView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get(self, request):
         posts = Post.objects.select_related("author").prefetch_related(
@@ -27,6 +113,7 @@ class PostListCreateView(APIView):
             "comments__replies__author",
             "comments__comment_likes",
             "comments__replies__comment_likes",
+            "tags",
         )
         serializer = PostSerializer(posts, many=True, context={"request": request})
         return Response(serializer.data)
@@ -44,9 +131,11 @@ class PostListCreateView(APIView):
         return Response(serializer.errors, status=400)
 
 
+# ---------------------------
 # POST BY USERNAME
+# ---------------------------
 class PostByUserView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get(self, request, username):
         user = get_object_or_404(User, username=username)
@@ -59,15 +148,18 @@ class PostByUserView(APIView):
                 "comments__replies__author",
                 "comments__comment_likes",
                 "comments__replies__comment_likes",
+                "tags",
             )
         )
         serializer = PostSerializer(posts, many=True, context={"request": request})
         return Response(serializer.data)
 
 
-# SINGLE POST VIEW (GET / UPDATE / DELETE)
+# ---------------------------
+# SINGLE POST VIEW
+# ---------------------------
 class PostDetailView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_object(self, pk):
         return get_object_or_404(
@@ -77,6 +169,7 @@ class PostDetailView(APIView):
                 "comments__replies__author",
                 "comments__comment_likes",
                 "comments__replies__comment_likes",
+                "tags",
             ),
             pk=pk,
         )
@@ -111,9 +204,11 @@ class PostDetailView(APIView):
         return Response(status=204)
 
 
+# ---------------------------
 # COMMENT LIST + CREATE
+# ---------------------------
 class CommentListCreateView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
@@ -153,7 +248,9 @@ class CommentListCreateView(APIView):
             )
 
 
+# ---------------------------
 # COMMENT UPDATE / DELETE
+# ---------------------------
 class CommentDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -179,9 +276,11 @@ class CommentDetailView(APIView):
         return Response(status=204)
 
 
+# ---------------------------
 # REPLY LIST + CREATE
+# ---------------------------
 class ReplyListCreateView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get(self, request, comment_id):
         comment = get_object_or_404(Comment, id=comment_id)
@@ -216,7 +315,9 @@ class ReplyListCreateView(APIView):
             )
 
 
+# ---------------------------
 # REPLY UPDATE / DELETE
+# ---------------------------
 class ReplyDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -244,7 +345,9 @@ class ReplyDetailView(APIView):
         return Response(status=204)
 
 
-# LIKE TOGGLE FOR POST + COMMENT
+# ---------------------------
+# LIKE TOGGLE
+# ---------------------------
 class LikeToggleView(APIView):
     permission_classes = [IsAuthenticated]
 

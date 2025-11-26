@@ -1,10 +1,41 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.utils.text import slugify
 
 User = get_user_model()
 
 
+# ---------------------------
+# TAG MODEL (ADMIN CONTROLLED)
+# ---------------------------
+class Tag(models.Model):
+    name = models.CharField(max_length=80, unique=True)
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.name)[:90]
+            slug = base
+            counter = 1
+            while Tag.objects.filter(slug=slug).exists():
+                counter += 1
+                slug = f"{base}-{counter}"
+            self.slug = slug
+
+        super().save(*args, **kwargs)
+
+
+# ---------------------------
+# POST MODEL
+# ---------------------------
 class Post(models.Model):
     author = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="community_posts"
@@ -12,6 +43,10 @@ class Post(models.Model):
     title = models.CharField(max_length=300, blank=True, null=True)
     content = models.TextField(max_length=10000)
     image = models.ImageField(upload_to="community/posts/", blank=True, null=True)
+
+    # NEW — MULTI TAGS
+    tags = models.ManyToManyField(Tag, blank=True, related_name="posts")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -30,10 +65,12 @@ class Post(models.Model):
         return self.comments.count()
 
     def top_level_comments(self):
-        """Used by PostSerializer to show only top-level comments + their replies"""
         return self.comments.filter(parent__isnull=True)
 
 
+# ---------------------------
+# COMMENT MODEL
+# ---------------------------
 class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(
@@ -67,11 +104,9 @@ class Comment(models.Model):
 
     @property
     def depth(self):
-        """Facebook-style: 0 = top-level, 1 = reply"""
         return 1 if self.parent else 0
 
     def clean(self):
-        """Block replies to replies (max 1 level)"""
         if self.parent and self.parent.parent:
             raise ValidationError(
                 "Replies to replies are not allowed. Only one level of reply is supported."
@@ -82,6 +117,9 @@ class Comment(models.Model):
         super().save(*args, **kwargs)
 
 
+# ---------------------------
+# LIKE MODEL
+# ---------------------------
 class Like(models.Model):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="community_likes"
