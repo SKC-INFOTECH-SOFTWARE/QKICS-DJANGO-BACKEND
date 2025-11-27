@@ -61,10 +61,9 @@ class ReplySerializer(serializers.ModelSerializer):
 # ---------------------------
 class CommentSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
-    replies = ReplySerializer(many=True, read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
-    depth = serializers.IntegerField(read_only=True)
+    total_replies = serializers.IntegerField(source="replies.count", read_only=True)
 
     class Meta:
         model = Comment
@@ -73,13 +72,11 @@ class CommentSerializer(serializers.ModelSerializer):
             "author",
             "content",
             "parent",
-            "replies",
             "total_likes",
             "is_liked",
-            "depth",
+            "total_replies",
             "created_at",
         ]
-        read_only_fields = ["replies", "depth", "created_at"]
 
     def get_is_liked(self, obj):
         user = self.context["request"].user
@@ -91,7 +88,6 @@ class CommentSerializer(serializers.ModelSerializer):
 # ---------------------------
 class PostSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
-    comments = CommentSerializer(many=True, read_only=True, source="top_level_comments")
     tags = TagSerializer(many=True, read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
     total_comments = serializers.IntegerField(read_only=True)
@@ -109,7 +105,6 @@ class PostSerializer(serializers.ModelSerializer):
             "total_likes",
             "total_comments",
             "is_liked",
-            "comments",
             "created_at",
             "updated_at",
         ]
@@ -184,3 +179,25 @@ class CommentCreateSerializer(serializers.ModelSerializer):
             author=self.context["request"].user,
             **validated_data
         )
+
+
+# ---------------------------
+# Post Search Serializer
+# ---------------------------
+class PostSearchSerializer(serializers.ModelSerializer):
+    author = AuthorSerializer(read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Post
+        fields = [
+            "id",
+            "author",
+            "title",
+            "content",
+            "image",
+            "tags",
+            "total_likes",
+            "total_comments",
+            "created_at",
+        ]

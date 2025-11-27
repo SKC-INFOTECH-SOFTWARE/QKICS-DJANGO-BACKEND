@@ -17,6 +17,7 @@ from .serializers import (
     TagSerializer,
 )
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 
 User = get_user_model()
 
@@ -384,3 +385,31 @@ class LikeToggleView(APIView):
                 "data": serializer_class(target, context={"request": request}).data,
             }
         )
+
+# ---------------------------
+# SEARCH POSTS
+# ---------------------------
+class SearchPostsView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request):
+        query = request.GET.get("q", "").strip()
+
+        if not query:
+            return Response({"error": "Search query 'q' is required"}, status=400)
+
+        posts = (
+            Post.objects.select_related("author")
+            .prefetch_related("tags")
+            .filter(
+                Q(title__icontains=query)
+                | Q(content__icontains=query)
+                | Q(tags__name__icontains=query)
+            )
+            .distinct()
+            .order_by("-created_at")
+        )
+
+        from .serializers import PostSearchSerializer
+        serializer = PostSearchSerializer(posts, many=True, context={"request": request})
+        return Response(serializer.data)

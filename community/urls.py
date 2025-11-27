@@ -20,6 +20,9 @@ from .views import (
     TagListCreateView,
     TagDetailView,
     PostByTagView,
+    
+    # SEARCH
+    SearchPostsView,
 )
 
 urlpatterns = [
@@ -54,4 +57,10 @@ urlpatterns = [
     # -----------------------------
     path("posts/<int:post_id>/like/", LikeToggleView.as_view(), name="like-post"),
     path("comments/<int:comment_id>/like/", LikeToggleView.as_view(), name="like-comment"),
+    
+    # ---------------------------
+    # POST SEARCH
+    # ---------------------------
+    path("search/", SearchPostsView.as_view(), name="search-posts"),
+
 ]
