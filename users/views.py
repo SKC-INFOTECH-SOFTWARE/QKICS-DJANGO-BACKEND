@@ -22,11 +22,6 @@ class RegisterAPIView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        """
-        Register a new user.
-        Required: username, user_type (normal/entrepreneur/expert/investor), password
-        Returns: user_id, username, user_type, is_verified (False)
-        """
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -36,7 +31,6 @@ class RegisterAPIView(APIView):
                     "user_id": user.id,
                     "username": user.username,
                     "user_type": user.user_type,
-                    "is_verified": user.is_verified,
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -49,10 +43,13 @@ class LoginAPIView(APIView):
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
+
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
+
         response = Response(
             {
                 "message": "Login successful",
@@ -60,19 +57,19 @@ class LoginAPIView(APIView):
                     "id": user.id,
                     "username": user.username,
                     "user_type": user.user_type,
-                    "is_verified": user.is_verified,
                 },
                 "access": str(refresh.access_token),
             },
             status=status.HTTP_200_OK,
         )
+
         response.set_cookie(
             key="refresh_token",
             value=str(refresh),
             httponly=True,
             secure=False,
             samesite="Lax",
-            max_age=30 * 24 * 60 * 60,  # 30 days
+            max_age=30 * 24 * 60 * 60,
             path="/",
         )
         return response
@@ -94,7 +91,6 @@ class GetMyProfileAPIView(APIView):
                 "last_name": user.last_name,
                 "user_type": user.user_type,
                 "status": user.status,
-                "is_verified": user.is_verified,
                 "created_at": user.created_at.strftime("%Y-%m-%d %H:%M"),
                 "updated_at": user.updated_at.strftime("%Y-%m-%d %H:%M"),
             },
@@ -107,9 +103,6 @@ class UserUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request):
-        """
-        Update logged-in user's profile (email, phone, name)
-        """
         serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             user = serializer.save()
@@ -125,7 +118,6 @@ class UserUpdateAPIView(APIView):
                         "last_name": user.last_name,
                         "user_type": user.user_type,
                         "status": user.status,
-                        "is_verified": user.is_verified,
                     },
                 },
                 status=status.HTTP_200_OK,
@@ -138,10 +130,6 @@ class PasswordChangeAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """
-        Change password for logged-in user.
-        Requires old password.
-        """
         serializer = PasswordChangeSerializer(
             data=request.data, context={"request": request}
         )
@@ -162,20 +150,13 @@ class UsernameCheckAPIView(APIView):
         username = request.data.get("username", "").strip()
 
         if not username:
-            return Response(
-                {"error": "Username is required."}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Username is required."}, status=400)
 
         if len(username) < 3:
-            return Response(
-                {"error": "Username must be at least 3 characters."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"error": "Username must be at least 3 characters."}, status=400)
 
         exists = User.objects.filter(username__iexact=username).exists()
-        return Response(
-            {"available": not exists, "username": username}, status=status.HTTP_200_OK
-        )
+        return Response({"available": not exists, "username": username}, status=200)
 
 
 # ────────────────────── CHECK EMAIL AVAILABILITY ──────────────────────
@@ -186,19 +167,13 @@ class EmailCheckAPIView(APIView):
         email = request.data.get("email", "").strip().lower()
 
         if not email:
-            return Response(
-                {"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Email is required."}, status=400)
 
         if "@" not in email or "." not in email.split("@")[-1]:
-            return Response(
-                {"error": "Invalid email format."}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Invalid email format."}, status=400)
 
         exists = User.objects.filter(email__iexact=email).exists()
-        return Response(
-            {"available": not exists, "email": email}, status=status.HTTP_200_OK
-        )
+        return Response({"available": not exists, "email": email}, status=200)
 
 
 # ────────────────────── CHECK PHONE AVAILABILITY ──────────────────────
@@ -209,24 +184,16 @@ class PhoneCheckAPIView(APIView):
         phone = request.data.get("phone", "").strip()
 
         if not phone:
-            return Response(
-                {"error": "Phone number is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"error": "Phone number is required."}, status=400)
 
         if not phone.isdigit() or len(phone) != 10:
-            return Response(
-                {"error": "Phone must be 10 digits (India only)."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"error": "Phone must be 10 digits."}, status=400)
 
         exists = User.objects.filter(phone=phone).exists()
-        return Response(
-            {"available": not exists, "phone": phone}, status=status.HTTP_200_OK
-        )
+        return Response({"available": not exists, "phone": phone}, status=200)
 
 
-# ────────────────────── LOGOUT API (BLACKLIST REFRESH TOKEN) ──────────────────────
+# ────────────────────── LOGOUT API ──────────────────────
 class LogoutAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -237,18 +204,14 @@ class LogoutAPIView(APIView):
                 token = RefreshToken(refresh_token)
                 token.blacklist()
 
-            response = Response(
-                {"message": "Logged out successfully"}, status=status.HTTP_200_OK
-            )
+            response = Response({"message": "Logged out successfully"}, status=200)
             response.delete_cookie("refresh_token")
             return response
         except Exception:
-            return Response(
-                {"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Invalid token"}, status=400)
 
 
-# ────────────────────── Admin User List API ──────────────────────
+# ────────────────────── ADMIN USER LIST ──────────────────────
 class AdminUserListAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
@@ -261,46 +224,17 @@ class AdminUserListAPIView(APIView):
                 "email": u.email,
                 "phone": u.phone,
                 "user_type": u.get_user_type_display(),
-                "is_verified": u.is_verified,
                 "created_at": u.created_at.strftime("%Y-%m-%d %H:%M"),
             }
             for u in users
         ]
-        return Response({"users": data}, status=status.HTTP_200_OK)
+        return Response({"users": data}, status=200)
 
 
-# ────────────────────── Admin Verify User API ──────────────────────
-class AdminVerifyUserAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsAdmin]
-
-    def patch(self, request, user_id):
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        action = request.data.get("action")
-        if action not in ["approve", "reject"]:
-            return Response(
-                {"error": "action must be 'approve' or 'reject'"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        user.is_verified = action == "approve"
-        user.save()
-
-        return Response(
-            {
-                "message": f"User {user.username} has been {action}d.",
-                "user_id": user.id,
-                "is_verified": user.is_verified,
-            },
-            status=status.HTTP_200_OK,
-        )
+# ❌ REMOVED: AdminVerifyUserAPIView (because is_verified was removed)
 
 
+# ────────────────────── COOKIE TOKEN REFRESH ──────────────────────
 class CookieTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
         refresh_token = request.COOKIES.get("refresh_token")
@@ -310,10 +244,7 @@ class CookieTokenRefreshView(TokenRefreshView):
             data["refresh"] = refresh_token
             request._full_data = data
         elif not request.data.get("refresh"):
-            return Response(
-                {"error": "Refresh token required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Refresh token required"}, status=400)
 
         try:
             response = super().post(request, *args, **kwargs)
@@ -321,7 +252,4 @@ class CookieTokenRefreshView(TokenRefreshView):
             return response
 
         except (InvalidToken, TokenError):
-            return Response(
-                {"error": "Invalid or expired refresh token"},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+            return Response({"error": "Invalid or expired refresh token"}, status=401)

@@ -20,7 +20,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "users",
-    "research",
+    "experts",
     "community",
 ]
 ROOT_URLCONF = "rplatform.urls"

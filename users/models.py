@@ -1,67 +1,63 @@
-from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.utils import timezone
+from django.contrib.auth.models import AbstractUser
+from django.core.validators import RegexValidator
 
 
 class User(AbstractUser):
-    # ────────────────────── USER ROLES ──────────────────────
-    USER_TYPES = (
+
+    USER_TYPES = [
         ("superadmin", "Super Admin"),
         ("admin", "Admin"),
         ("expert", "Expert"),
         ("entrepreneur", "Entrepreneur"),
         ("investor", "Investor"),
         ("normal", "Normal User"),
-    )
+    ]
 
-    # ────────────────────── ACCOUNT STATUS ──────────────────────
-    STATUS_CHOICES = (
+    STATUS_TYPES = [
         ("active", "Active"),
         ("inactive", "Inactive"),
-        ("suspended", "Suspended"),
-    )
+        ("banned", "Banned"),
+    ]
 
-    # ────────────────────── FIELDS ──────────────────────
+    # USER ROLE
     user_type = models.CharField(
         max_length=20,
         choices=USER_TYPES,
-        default="normal",
-        help_text="User role in the platform",
+        default="normal"
     )
+
+    # ACCOUNT STATUS
     status = models.CharField(
-        max_length=10,
-        choices=STATUS_CHOICES,
-        default="active",
-        help_text="Account status",
+        max_length=20,
+        choices=STATUS_TYPES,
+        default="active"
     )
-    is_verified = models.BooleanField(
-        default=False, help_text="True if admin has verified the user"
-    )
-    email = models.EmailField(
-        unique=True, blank=True, null=True, help_text="Unique email address"
-    )
+
+    # OPTIONAL PHONE NUMBER
     phone = models.CharField(
         max_length=15,
-        unique=True,
         blank=True,
-        null=True,
-        help_text="Unique 10-digit Indian mobile number",
+        validators=[
+            RegexValidator(
+                regex=r"^[0-9]{7,15}$",
+                message="Phone number must contain only digits (7–15 digits)."
+            )
+        ]
     )
-    created_at = models.DateTimeField(
-        auto_now_add=True, help_text="Account creation time (IST)"
-    )
-    updated_at = models.DateTimeField(auto_now=True, help_text="Last update time (IST)")
 
-    # ────────────────────── METHODS ──────────────────────
-    def is_active_user(self):
-        """Allow login only if Django active + status active"""
-        return self.is_active and self.status == "active"
+    # OPTIONAL BASIC PROFILE PICTURE
+    profile_picture = models.ImageField(
+        upload_to="users/profile_pics/",
+        blank=True,
+        null=True
+    )
+
+    # TIMESTAMPS
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    REQUIRED_FIELDS = ["email"]
 
     def __str__(self):
-        verified = "✓" if self.is_verified else "⏳"
-        return f"{self.username} ({self.get_user_type_display()} | {self.get_status_display()}) {verified}"
-
-    class Meta:
-        verbose_name = "User"
-        verbose_name_plural = "Users"
-        ordering = ["-created_at"]
+        return f"{self.username} ({self.user_type})"
