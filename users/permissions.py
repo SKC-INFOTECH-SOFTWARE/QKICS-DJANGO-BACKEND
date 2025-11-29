@@ -1,79 +1,82 @@
+# users/permissions.py
+
 from rest_framework.permissions import BasePermission
 
 
 class IsSuperAdmin(BasePermission):
     def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated
-            and request.user.user_type == "superadmin"
-        )
+        return request.user.is_authenticated and request.user.user_type == "superadmin"
 
 
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated
-            and request.user.user_type in ["superadmin", "admin"]
-        )
+        return request.user.is_authenticated and request.user.user_type in [
+            "superadmin",
+            "admin",
+        ]
 
 
 class IsExpert(BasePermission):
-    """
-    Expert must:
-    - be authenticated
-    - be user_type == 'expert'
-    - have a verified ExpertProfile
-    """
-    def has_permission(self, request, view):
-        user = request.user
+    """Verified expert with approved ExpertProfile"""
 
-        if not (user.is_authenticated and user.user_type == "expert"):
-            return False
-
-        # ExpertProfile verification
-        if hasattr(user, "expert_profile"):
-            return user.expert_profile.verified_by_admin
-
-        return False
-
-
-class IsInvestor(BasePermission):
-    """
-    Keep user_type check only for now,
-    because investor_profile is not yet implemented.
-    Add verified check later.
-    """
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated
-            and request.user.user_type == "investor"
+            and request.user.user_type == "expert"
+            and hasattr(request.user, "expert_profile")
+            and request.user.expert_profile.verified_by_admin
+            and request.user.expert_profile.application_status == "approved"
         )
 
 
 class IsEntrepreneur(BasePermission):
-    """
-    Keep user_type check only for now,
-    until EntrepreneurProfile is implemented.
-    """
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated
             and request.user.user_type == "entrepreneur"
+            and hasattr(request.user, "entrepreneur_profile")
+            and request.user.entrepreneur_profile.verified_by_admin
+            and request.user.entrepreneur_profile.application_status == "approved"
+        )
+
+
+class IsInvestor(BasePermission):
+    """Verified investor — will be created & verified by admin"""
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.user_type == "investor"
+            and hasattr(request.user, "investor_profile")
+            and request.user.investor_profile.verified_by_admin
+            and request.user.investor_profile.application_status == "approved"
         )
 
 
 class IsNormalUser(BasePermission):
     def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.user_type == "normal"
+
+
+class IsPremiumUser(BasePermission):
+    """User has active premium subscription"""
+
+    def has_permission(self, request, view):
         return (
             request.user.is_authenticated
-            and request.user.user_type == "normal"
+            and hasattr(request.user, "subscription")
+            and request.user.subscription.is_active
         )
 
 
 class IsOwnerOrAdmin(BasePermission):
-    """Allow owner of object OR admin/superadmin."""
+    """Allow owner of object OR admin/superadmin"""
+
     def has_object_permission(self, request, view, obj):
-        return (
-            obj == request.user
-            or request.user.user_type in ["admin", "superadmin"]
-        )
+        # Works for objects that have .user field (e.g. Profile, Post, etc.)
+        if hasattr(obj, "user"):
+            return obj.user == request.user or request.user.user_type in [
+                "admin",
+                "superadmin",
+            ]
+        return request.user.user_type in ["admin", "superadmin"]

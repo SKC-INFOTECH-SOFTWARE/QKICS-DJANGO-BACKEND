@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "users",
     "experts",
+    "entrepreneurs",
     "community",
 ]
 ROOT_URLCONF = "rplatform.urls"
