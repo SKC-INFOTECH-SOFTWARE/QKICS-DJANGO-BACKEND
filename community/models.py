@@ -109,7 +109,12 @@ class Post(models.Model):
         # No new image → normal save
         if not new_image_uploaded:
             return super().save(*args, **kwargs)
-
+        
+        if new_image_uploaded and not self.image:
+            if old_image_path and default_storage.exists(old_image_path):
+                default_storage.delete(old_image_path)
+            return super().save(*args, **kwargs)
+        
         # ------------------------------------------------------
         # COMPRESS BEFORE DJANGO SAVES — PREVENT ORIGINAL WRITES
         # ------------------------------------------------------
