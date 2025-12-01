@@ -2,10 +2,10 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 from django.core.files.base import ContentFile
-
+from django.core.files.storage import default_storage
 User = get_user_model()
 
 
@@ -71,31 +71,67 @@ class Post(models.Model):
         return self.comments.filter(parent__isnull=True)
     
     def save(self, *args, **kwargs):
-        if self.image:
-            img = Image.open(self.image)
+        # Get old version before saving
+        try:
+            old = Post.objects.get(pk=self.pk)
+            old_image = old.image
+        except Post.DoesNotExist:
+            old = None
+            old_image = None
 
-            # Convert to RGB if needed
-            if img.mode != "RGB":
-                img = img.convert("RGB")
+        # CASE 1 — Image removed
+        if not self.image:
+            if old_image and default_storage.exists(old_image.path):
+                default_storage.delete(old_image.path)
+            return super().save(*args, **kwargs)
 
-            buffer = BytesIO()
-            quality = 85
+        # CASE 2 — No new image uploaded → do nothing
+        if old_image and self.image == old_image:
+            return super().save(*args, **kwargs)
 
-            # Compress to <= 200 KB
-            while True:
-                buffer.seek(0)
-                buffer.truncate()
-                img.save(buffer, format="JPEG", quality=quality)
-                size_kb = buffer.tell() / 1024
+        # CASE 3 — New image uploaded → delete old file
+        if old_image and default_storage.exists(old_image.path):
+            default_storage.delete(old_image.path)
 
-                if size_kb <= 200 or quality <= 40:
-                    break
+        # FIRST SAVE IF NEW POST (no ID yet)
+        is_new = self.pk is None
+        if is_new:
+            temp = self.image
+            self.image = None
+            super().save(*args, **kwargs)
+            self.image = temp
 
-                quality -= 5
+        # ==== IMAGE PROCESSING ====
 
-            # Override original image, Django adds upload_to automatically
-            filename = f"post_{self.id or 'new'}.jpg"
-            self.image = ContentFile(buffer.getvalue(), name=filename)
+        img = Image.open(self.image)
+
+        # Fix rotation using EXIF
+        img = ImageOps.exif_transpose(img)
+
+        # Convert to RGB for JPEG
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+
+        buffer = BytesIO()
+        quality = 85
+
+        # Compress until <= 200 KB
+        while True:
+            buffer.seek(0)
+            buffer.truncate()
+            img.save(buffer, format="JPEG", quality=quality)
+            size_kb = buffer.tell() / 1024
+
+            if size_kb <= 200 or quality <= 40:
+                break
+
+            quality -= 5
+
+        # File name based on POST ID
+        filename = f"{self.pk}.jpg"
+
+        # Save compressed image
+        self.image = ContentFile(buffer.getvalue(), name=filename)
 
         super().save(*args, **kwargs)
 
