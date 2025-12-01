@@ -16,7 +16,7 @@ def post_image_upload_path(instance, filename):
     ext = filename.split(".")[-1].lower()
 
     while True:
-        unique_name = f"{secrets.token_hex(30)}.{ext}"
+        unique_name = f"{secrets.token_hex(30)}.jpg"
         full_path = f"community/posts/{unique_name}"
         if not default_storage.exists(full_path):
             return full_path
@@ -135,7 +135,10 @@ class Post(models.Model):
                 break
             quality -= 5
 
-        self.image = ContentFile(buffer.getvalue())
+        new_name = f"{secrets.token_hex(30)}.jpg"
+        
+        self.image = ContentFile(buffer.getvalue(), name=new_name)
+
         # Save compressed image only
         super().save(*args, **kwargs)
 
