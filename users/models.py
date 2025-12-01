@@ -1,7 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
-
+from PIL import Image
+from io import BytesIO
+from django.core.files.base import ContentFile
 
 class User(AbstractUser):
 
@@ -61,3 +63,33 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.user_type})"
+    
+    def save(self, *args, **kwargs):
+        # Auto-rename file based on username
+        if self.profile_picture:
+            ext = self.profile_picture.name.split(".")[-1]
+            self.profile_picture.name = f"users/profile_pics/{self.username}.{ext}"
+
+            # Compress image to ~200KB
+            img = Image.open(self.profile_picture)
+
+            # Convert to RGB if PNG/others
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+
+            buffer = BytesIO()
+            quality = 85   # Start quality
+
+            # Reduce quality until <200 KB
+            while True:
+                buffer.seek(0)
+                buffer.truncate()
+                img.save(buffer, format="JPEG", quality=quality)
+                size_kb = buffer.tell() / 1024
+                if size_kb <= 200 or quality <= 40:
+                    break
+                quality -= 5
+
+            self.profile_picture = ContentFile(buffer.getvalue(), name=f"users/profile_pics/{self.username}.jpg")
+
+        super().save(*args, **kwargs)

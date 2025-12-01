@@ -91,6 +91,7 @@ class GetMyProfileAPIView(APIView):
                 "last_name": user.last_name,
                 "user_type": user.user_type,
                 "status": user.status,
+                "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
                 "created_at": user.created_at.strftime("%Y-%m-%d %H:%M"),
                 "updated_at": user.updated_at.strftime("%Y-%m-%d %H:%M"),
             },
@@ -118,6 +119,7 @@ class UserUpdateAPIView(APIView):
                         "last_name": user.last_name,
                         "user_type": user.user_type,
                         "status": user.status,
+                        "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
                     },
                 },
                 status=status.HTTP_200_OK,
@@ -229,9 +231,6 @@ class AdminUserListAPIView(APIView):
             for u in users
         ]
         return Response({"users": data}, status=200)
-
-
-# ❌ REMOVED: AdminVerifyUserAPIView (because is_verified was removed)
 
 
 # ────────────────────── COOKIE TOKEN REFRESH ──────────────────────
