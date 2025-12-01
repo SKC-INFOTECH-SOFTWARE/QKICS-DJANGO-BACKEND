@@ -127,21 +127,27 @@ class PostCreateSerializer(serializers.ModelSerializer):
         model = Post
         fields = ["title", "content", "image", "tags"]
 
-    def validate_tags(self, value):
-        if not value:
-            return []
-
-        valid_ids = list(Tag.objects.filter(id__in=value).values_list("id", "name"))
-        if len(valid_ids) != len(set(value)):
-            raise serializers.ValidationError("Invalid tag IDs provided.")
-
-        return value
-
     def create(self, validated_data):
+        request = self.context["request"]
+        author = request.user
+        
+        validated_data["author"] = author
+        
         tag_ids = validated_data.pop("tags", [])
+        image = validated_data.pop("image", None)
+
+        # 1) Create post WITHOUT image — safe generate PK
         post = Post.objects.create(**validated_data)
+
+        # 2) Attach image afterwards
+        if image:
+            post.image = image
+            post.save()   # <-- triggers update, NOT insert
+
+        # 3) Set tags
         if tag_ids:
             post.tags.set(tag_ids)
+
         return post
 
     def update(self, instance, validated_data):

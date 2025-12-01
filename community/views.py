@@ -120,15 +120,18 @@ class PostListCreateView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
-        if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=401)
+        serializer = PostCreateSerializer(
+            data=request.data,
+            context={"request": request}
+        )
 
-        serializer = PostCreateSerializer(data=request.data)
         if serializer.is_valid():
-            post = serializer.save(author=request.user)
+            post = serializer.save()  # author handled inside serializer
             return Response(
-                PostSerializer(post, context={"request": request}).data, status=201
+                PostSerializer(post, context={"request": request}).data,
+                status=201
             )
+
         return Response(serializer.errors, status=400)
 
 
@@ -386,6 +389,7 @@ class LikeToggleView(APIView):
             }
         )
 
+
 # ---------------------------
 # SEARCH POSTS
 # ---------------------------
@@ -411,5 +415,8 @@ class SearchPostsView(APIView):
         )
 
         from .serializers import PostSearchSerializer
-        serializer = PostSearchSerializer(posts, many=True, context={"request": request})
+
+        serializer = PostSearchSerializer(
+            posts, many=True, context={"request": request}
+        )
         return Response(serializer.data)

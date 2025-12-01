@@ -86,7 +86,8 @@ TEMPLATES = [
     },
 ]
 STATIC_URL = "/static/"
-
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -95,3 +96,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "users.User"
 
 ACCOUNT_EMAIL_REQUIRED = False
+
+# timeze kolkata
+TIME_ZONE = "Asia/Kolkata"
+USE_TZ = True
+LANGUAGE_CODE = "en-us"
+USE_I18N = True
+USE_L10N = True

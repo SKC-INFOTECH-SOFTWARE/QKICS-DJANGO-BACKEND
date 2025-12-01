@@ -6,7 +6,20 @@ from PIL import Image, ImageOps
 from io import BytesIO
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+import secrets
+
+
 User = get_user_model()
+
+
+def post_image_upload_path(instance, filename):
+    ext = filename.split(".")[-1].lower()
+
+    while True:
+        unique_name = f"{secrets.token_hex(30)}.{ext}"
+        full_path = f"community/posts/{unique_name}"
+        if not default_storage.exists(full_path):
+            return full_path
 
 
 # ---------------------------
@@ -45,7 +58,7 @@ class Post(models.Model):
     )
     title = models.CharField(max_length=300, blank=True, null=True)
     content = models.TextField(max_length=10000)
-    image = models.ImageField(upload_to="community/posts/", blank=True, null=True)
+    image = models.ImageField(upload_to=post_image_upload_path, blank=True, null=True)
 
     # NEW — MULTI TAGS
     tags = models.ManyToManyField(Tag, blank=True, related_name="posts")
@@ -69,78 +82,61 @@ class Post(models.Model):
 
     def top_level_comments(self):
         return self.comments.filter(parent__isnull=True)
-    
+
     # IMAGE HANDLING
     def delete(self, *args, **kwargs):
         if self.image and self.image.name:
             if default_storage.exists(self.image.path):
                 default_storage.delete(self.image.path)
         super().delete(*args, **kwargs)
-        
+
     def save(self, *args, **kwargs):
-        # Get old version before saving
-        try:
-            old = Post.objects.get(pk=self.pk)
-            old_image = old.image
-        except Post.DoesNotExist:
-            old = None
-            old_image = None
+        old_image_path = None
+        new_image_uploaded = False
 
-        # CASE 1 — Image removed
-        if not self.image:
-            if old_image and default_storage.exists(old_image.path):
-                default_storage.delete(old_image.path)
+        # Detect update
+        if self.pk:
+            old_post = Post.objects.filter(pk=self.pk).first()
+            if old_post:
+                if old_post.image and old_post.image != self.image:
+                    old_image_path = old_post.image.path
+                    new_image_uploaded = True
+        else:
+            # Create
+            if self.image:
+                new_image_uploaded = True
+
+        # No new image → normal save
+        if not new_image_uploaded:
             return super().save(*args, **kwargs)
 
-        # CASE 2 — No new image uploaded → do nothing
-        if old_image and self.image == old_image:
-            return super().save(*args, **kwargs)
-
-        # CASE 3 — New image uploaded → delete old file
-        if old_image and default_storage.exists(old_image.path):
-            default_storage.delete(old_image.path)
-
-        # FIRST SAVE IF NEW POST (no ID yet)
-        is_new = self.pk is None
-        if is_new:
-            temp = self.image
-            self.image = None
-            super().save(*args, **kwargs)
-            self.image = temp
-
-        # ==== IMAGE PROCESSING ====
-
+        # ------------------------------------------------------
+        # COMPRESS BEFORE DJANGO SAVES — PREVENT ORIGINAL WRITES
+        # ------------------------------------------------------
         img = Image.open(self.image)
-
-        # Fix rotation using EXIF
         img = ImageOps.exif_transpose(img)
 
-        # Convert to RGB for JPEG
         if img.mode != "RGB":
             img = img.convert("RGB")
 
         buffer = BytesIO()
         quality = 85
 
-        # Compress until <= 200 KB
         while True:
             buffer.seek(0)
             buffer.truncate()
             img.save(buffer, format="JPEG", quality=quality)
-            size_kb = buffer.tell() / 1024
-
-            if size_kb <= 200 or quality <= 40:
+            if buffer.tell() / 1024 <= 200 or quality <= 40:
                 break
-
             quality -= 5
 
-        # File name based on POST ID
-        filename = f"{self.pk}.jpg"
-
-        # Save compressed image
-        self.image = ContentFile(buffer.getvalue(), name=filename)
-
+        self.image = ContentFile(buffer.getvalue())
+        # Save compressed image only
         super().save(*args, **kwargs)
+
+        # Delete old image after updating
+        if old_image_path and default_storage.exists(old_image_path):
+            default_storage.delete(old_image_path)
 
 
 # ---------------------------
