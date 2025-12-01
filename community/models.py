@@ -70,6 +70,13 @@ class Post(models.Model):
     def top_level_comments(self):
         return self.comments.filter(parent__isnull=True)
     
+    # IMAGE HANDLING
+    def delete(self, *args, **kwargs):
+        if self.image and self.image.name:
+            if default_storage.exists(self.image.path):
+                default_storage.delete(self.image.path)
+        super().delete(*args, **kwargs)
+        
     def save(self, *args, **kwargs):
         # Get old version before saving
         try:
