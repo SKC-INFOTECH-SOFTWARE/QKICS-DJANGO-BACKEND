@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
+from PIL import Image
+from io import BytesIO
+from django.core.files.base import ContentFile
 
 User = get_user_model()
 
@@ -66,6 +69,35 @@ class Post(models.Model):
 
     def top_level_comments(self):
         return self.comments.filter(parent__isnull=True)
+    
+    def save(self, *args, **kwargs):
+        if self.image:
+            img = Image.open(self.image)
+
+            # Convert to RGB if needed
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+
+            buffer = BytesIO()
+            quality = 85
+
+            # Compress to <= 200 KB
+            while True:
+                buffer.seek(0)
+                buffer.truncate()
+                img.save(buffer, format="JPEG", quality=quality)
+                size_kb = buffer.tell() / 1024
+
+                if size_kb <= 200 or quality <= 40:
+                    break
+
+                quality -= 5
+
+            # Override original image, Django adds upload_to automatically
+            filename = f"post_{self.id or 'new'}.jpg"
+            self.image = ContentFile(buffer.getvalue(), name=filename)
+
+        super().save(*args, **kwargs)
 
 
 # ---------------------------

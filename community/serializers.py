@@ -2,7 +2,6 @@ from rest_framework import serializers
 from .models import Post, Comment, Tag
 from users.models import User
 
-
 # ---------------------------
 # AUTHOR
 # ---------------------------
@@ -20,6 +19,7 @@ class AuthorSerializer(serializers.ModelSerializer):
             "last_name",
             "user_type",
             "user_type_display",
+            "profile_picture",
         ]
 
 
@@ -150,7 +150,29 @@ class PostCreateSerializer(serializers.ModelSerializer):
         if tag_ids is not None:
             post.tags.set(tag_ids)
         return post
+    
+    def validate_title(self, value):
+        if value and len(value) > 200:
+            raise serializers.ValidationError("Title cannot exceed 200 characters.")
+        return value
 
+    def validate_content(self, value):
+        if len(value) > 8000:
+            raise serializers.ValidationError("Content cannot exceed 8000 characters.")
+        return value
+    
+    def validate_tags(self, value):
+        if not value:
+            return []
+
+        if len(value) > 5:
+            raise serializers.ValidationError("You can select a maximum of 5 tags.")
+
+        valid_ids = list(Tag.objects.filter(id__in=value).values_list("id", flat=True))
+        if len(valid_ids) != len(set(value)):
+            raise serializers.ValidationError("Invalid tag IDs provided.")
+
+        return value
 
 # ---------------------------
 # COMMENT CREATE SERIALIZER
@@ -162,11 +184,22 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 
     def validate_content(self, value):
         value = value.strip()
+
         if not value:
-            raise serializers.ValidationError("Comment cannot be empty.")
-        if len(value) > 5000:
-            raise serializers.ValidationError("Comment too long.")
+            raise serializers.ValidationError("Content cannot be empty.")
+
+        parent = self.initial_data.get("parent")
+
+        if parent:
+            if len(value) > 500:
+                raise serializers.ValidationError("Replies cannot exceed 500 characters.")
+        else:
+            # Comment (top level)
+            if len(value) > 1000:
+                raise serializers.ValidationError("Comments cannot exceed 1000 characters.")
+
         return value
+
 
     def validate_parent(self, value):
         if value and value.parent is not None:
