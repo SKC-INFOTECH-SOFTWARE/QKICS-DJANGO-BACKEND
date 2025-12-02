@@ -9,6 +9,7 @@ urlpatterns = [
     path("api/v1/experts/", include("experts.urls")),
     path("api/v1/entrepreneurs/", include("entrepreneurs.urls")),
     path("api/v1/community/", include("community.urls")),
+    path("api/v1/investors/", include("investors.urls")),
 ]
 
 if settings.DEBUG:

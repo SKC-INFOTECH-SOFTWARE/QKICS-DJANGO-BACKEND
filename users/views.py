@@ -269,3 +269,61 @@ class CookieTokenRefreshView(TokenRefreshView):
 
         except (InvalidToken, TokenError):
             return Response({"error": "Invalid or expired refresh token"}, status=401)
+
+# ────────────────────── ADMIN: CREATE ANY USER TYPE ──────────────────────
+class AdminCreateUserAPIView(APIView):
+    """
+    Admin can create ANY user type:
+    - normal (default)
+    - expert
+    - entrepreneur
+    - investor
+    """
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        username = request.data.get("username")
+        email = request.data.get("email")
+        password = request.data.get("password")
+        user_type = request.data.get("user_type", "normal").lower()  # default = normal
+        first_name = request.data.get("first_name", "")
+        last_name = request.data.get("last_name", "")
+
+        # Validation
+        if not username or not email:
+            return Response({"error": "username and email are required"}, status=400)
+
+        if User.objects.filter(username__iexact=username).exists():
+            return Response({"error": "Username already taken"}, status=400)
+
+        if User.objects.filter(email__iexact=email).exists():
+            return Response({"error": "Email already registered"}, status=400)
+
+        if user_type not in ["normal", "expert", "entrepreneur", "investor"]:
+            return Response({"error": "Invalid user_type"}, status=400)
+
+        # Generate password if not provided
+        if not password:
+            password = User.objects.make_random_password(length=12)
+
+        # Create user
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            user_type=user_type,
+            first_name=first_name,
+            last_name=last_name,
+        )
+
+        return Response(
+            {
+                "message": "User created successfully",
+                "user_id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "user_type": user.get_user_type_display(),
+                "temporary_password": password,  # Admin can send this
+            },
+            status=status.HTTP_201_CREATED,
+        )

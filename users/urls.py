@@ -12,6 +12,7 @@ from .views import (
     LogoutAPIView,
     AdminUserListAPIView,
     CookieTokenRefreshView,
+    AdminCreateUserAPIView,
 )
 
 urlpatterns = [
@@ -32,6 +33,7 @@ urlpatterns = [
 
     # Admin APIs (only listing users now)
     path("admin/users/", AdminUserListAPIView.as_view(), name="admin-user-list"),
+    path("admin/create/", AdminCreateUserAPIView.as_view(), name="admin-create-user"),
 
     # Logout
     path("logout/", LogoutAPIView.as_view(), name="logout"),

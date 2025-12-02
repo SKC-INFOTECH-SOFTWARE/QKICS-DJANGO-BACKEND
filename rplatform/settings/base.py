@@ -1,7 +1,12 @@
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
+import tzdata
+import os
 
+if os.name == "nt":
+    os.environ["TZ"] = "UTC"
+    
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = config("SECRET_KEY")
@@ -15,13 +20,16 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # plugins===========
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    # apps=============
     "users",
     "experts",
     "entrepreneurs",
+    'investors',
     "community",
 ]
 ROOT_URLCONF = "rplatform.urls"
@@ -103,3 +111,4 @@ USE_TZ = True
 LANGUAGE_CODE = "en-us"
 USE_I18N = True
 USE_L10N = True
+
