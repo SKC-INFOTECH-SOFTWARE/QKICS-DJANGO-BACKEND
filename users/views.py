@@ -57,6 +57,13 @@ class LoginAPIView(APIView):
                     "id": user.id,
                     "username": user.username,
                     "user_type": user.user_type,
+                    "profile_picture": (
+                        request.build_absolute_uri(user.profile_picture.url)
+                        if user.profile_picture
+                        else None
+                    ),
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
                 },
                 "access": str(refresh.access_token),
             },
@@ -91,7 +98,11 @@ class GetMyProfileAPIView(APIView):
                 "last_name": user.last_name,
                 "user_type": user.user_type,
                 "status": user.status,
-                "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                "profile_picture": (
+                    request.build_absolute_uri(user.profile_picture.url)
+                    if user.profile_picture
+                    else None
+                ),
                 "created_at": user.created_at.strftime("%Y-%m-%d %H:%M"),
                 "updated_at": user.updated_at.strftime("%Y-%m-%d %H:%M"),
             },
@@ -119,7 +130,11 @@ class UserUpdateAPIView(APIView):
                         "last_name": user.last_name,
                         "user_type": user.user_type,
                         "status": user.status,
-                        "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None,
+                        "profile_picture": (
+                            request.build_absolute_uri(user.profile_picture.url)
+                            if user.profile_picture
+                            else None
+                        ),
                     },
                 },
                 status=status.HTTP_200_OK,
@@ -155,7 +170,9 @@ class UsernameCheckAPIView(APIView):
             return Response({"error": "Username is required."}, status=400)
 
         if len(username) < 3:
-            return Response({"error": "Username must be at least 3 characters."}, status=400)
+            return Response(
+                {"error": "Username must be at least 3 characters."}, status=400
+            )
 
         exists = User.objects.filter(username__iexact=username).exists()
         return Response({"available": not exists, "username": username}, status=200)
