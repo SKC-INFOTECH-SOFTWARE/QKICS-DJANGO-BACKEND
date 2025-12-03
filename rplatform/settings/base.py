@@ -25,15 +25,17 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    "channels",
     # apps=============
     "users",
     "experts",
     "entrepreneurs",
     'investors',
     "community",
+    "chat",
 ]
 ROOT_URLCONF = "rplatform.urls"
-
+ASGI_APPLICATION = "rplatform.asgi.application"
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -112,3 +114,11 @@ LANGUAGE_CODE = "en-us"
 USE_I18N = True
 USE_L10N = True
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
