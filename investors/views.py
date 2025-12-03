@@ -92,18 +92,51 @@ class AdminCreateInvestorView(APIView):
 
     def post(self, request):
         data = request.data.copy()
-        username = data.pop("username")
-        email = data.pop("email")
-        password = data.pop("password", None) or User.objects.make_random_password()
 
-        user = User.objects.create_user(username=username, email=email, password=password)
-        investor = Investor.objects.create(user=user, created_by_admin=request.user, **data)
-        return Response({
-            "message": "Investor created",
-            "username": user.username,
-            "password": password,
-            "investor_id": investor.id
-        }, status=201)
+        # Required fields
+        username = data.pop("username", None)
+        email = data.pop("email", None)
+        password = data.pop("password", None)
+
+        # Validation
+        if not all([username, email, password]):
+            return Response({
+                "error": "username, email, and password are required"
+            }, status=400)
+
+        if User.objects.filter(username=username).exists():
+            return Response({"error": "Username already taken"}, status=400)
+        if User.objects.filter(email=email).exists():
+            return Response({"error": "Email already registered"}, status=400)
+
+        # Create user with admin-defined password
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            user_type="investor"
+        )
+
+        # Create investor profile
+        serializer = InvestorWriteSerializer(data=data)
+        if serializer.is_valid():
+            investor = serializer.save(
+                user=user,
+                created_by_admin=request.user,
+                verified_by_admin=True,
+                application_status="approved",
+                is_active=True
+            )
+            return Response({
+                "message": "Investor created successfully",
+                "username": user.username,
+                "password_set_by_admin": True,
+                "investor_id": investor.id,
+            }, status=201)
+
+        # Rollback if profile fails
+        user.delete()
+        return Response(serializer.errors, status=400)
 
 
 # Admin: Approve / Reject

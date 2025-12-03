@@ -45,7 +45,7 @@ class EntrepreneurDetailView(APIView):
 # Self: Create / View / Update own profile
 class EntrepreneurProfileSelfView(APIView):
     permission_classes = [IsAuthenticated]
-
+    
     def get(self, request):
         profile = getattr(request.user, "entrepreneur_profile", None)
         if not profile:
@@ -54,6 +54,14 @@ class EntrepreneurProfileSelfView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
+        if request.user.user_type in ["expert", "investor"]:
+            return Response({
+                "error": "You are already a verified expert or investor. Cannot create entrepreneur profile."
+            }, status=400)
+
+        if hasattr(request.user, "entrepreneur_profile"):
+            return Response({"error": "Entrepreneur profile already exists"}, status=400)
+        
         if hasattr(request.user, "entrepreneur_profile"):
             return Response({"detail": "Profile already exists."}, status=400)
 
@@ -100,13 +108,42 @@ class EntrepreneurApplicationSubmitView(APIView):
 
 # Admin: Approve/Reject
 class AdminVerifyEntrepreneurView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin]
 
-    def post(self, request, profile_id):
-        profile = get_object_or_404(EntrepreneurProfile, id=profile_id)
-        serializer = EntrepreneurAdminVerifySerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(profile)
-            action = "approved" if serializer.validated_data["action"] == "approve" else "rejected"
-            return Response({"detail": f"Profile {action}."})
-        return Response(serializer.errors, status=400)
+    def patch(self, request, profile_id):
+        profile = get_object_or_404(EntrepreneurProfile.objects.select_related("user"), id=profile_id)
+        serializer = EntrepreneurAdminVerifySerializer(data=request.data)  # Reuse same serializer
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        action = serializer.validated_data["action"]
+
+        if action == "approve":
+            # ←←← BLOCK IF USER ALREADY HAS ANOTHER VERIFIED ROLE ←←←
+            if profile.user.user_type in ["expert", "investor"]:
+                return Response({
+                    "error": "User already has a verified role (expert/investor). Cannot approve as entrepreneur."
+                }, status=400)
+
+            # Auto-reject pending expert profile
+            if hasattr(profile.user, "expert_profile"):
+                exp = profile.user.expert_profile
+                exp.application_status = "rejected"
+                exp.admin_review_note = "Auto-rejected: approved as Entrepreneur"
+                exp.save()
+
+            profile.verified_by_admin = True
+            profile.application_status = "approved"
+            profile.user.user_type = "entrepreneur"
+            profile.user.save()
+            profile.save()
+
+            return Response({"message": "Entrepreneur approved. Other applications auto-rejected."})
+
+        elif action == "reject":
+            profile.application_status = "rejected"
+            profile.save()
+            return Response({"message": "Entrepreneur application rejected."})
+
+        return Response({"error": "Invalid action"}, status=400)

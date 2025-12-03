@@ -92,6 +92,14 @@ class ExpertProfileSelfView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
+        if request.user.user_type in ["entrepreneur", "investor"]:
+            return Response({
+                "error": "You are already a verified entrepreneur or investor. Cannot create expert profile."
+            }, status=400)
+
+        if hasattr(request.user, "expert_profile"):
+            return Response({"error": "Expert profile already exists"}, status=400)
+        
         # create profile if not exists
         if hasattr(request.user, "expert_profile"):
             return Response({"detail": "Expert profile already exists."}, status=status.HTTP_400_BAD_REQUEST)
@@ -163,10 +171,40 @@ class AdminVerifyExpertView(APIView):
     def patch(self, request, profile_id):
         profile = get_object_or_404(ExpertProfile.objects.select_related("user"), id=profile_id)
         serializer = ExpertAdminVerifySerializer(data=request.data, context={"request": request})
-        if serializer.is_valid():
-            serializer.save(expert_profile=profile)
-            return Response({"detail": "Action applied.", "profile_id": profile.id}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        action = serializer.validated_data["action"]
+
+        if action == "approve":
+            # ←←← BLOCK IF USER ALREADY HAS ANOTHER VERIFIED ROLE ←←←
+            if profile.user.user_type in ["entrepreneur", "investor"]:
+                return Response({
+                    "error": "User already has a verified role (entrepreneur/investor). Cannot approve as expert."
+                }, status=400)
+
+            # Auto-reject pending entrepreneur profile
+            if hasattr(profile.user, "entrepreneur_profile"):
+                ent = profile.user.entrepreneur_profile
+                ent.application_status = "rejected"
+                ent.admin_review_note = "Auto-rejected: approved as Expert"
+                ent.save()
+
+            profile.verified_by_admin = True
+            profile.application_status = "approved"
+            profile.user.user_type = "expert"
+            profile.user.save()
+            profile.save()
+
+            return Response({"message": "Expert approved. Other applications auto-rejected."})
+
+        elif action == "reject":
+            profile.application_status = "rejected"
+            profile.save()
+            return Response({"message": "Expert application rejected."})
+
+        return Response({"error": "Invalid action"}, status=400)
 
 
 # -----------------------
