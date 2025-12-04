@@ -28,7 +28,7 @@ from .pagination import (
     CommentCursorPagination,
     ReplyCursorPagination,
 )
-
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -125,6 +125,16 @@ class PostListCreateView(ListAPIView):
 
     # KEEP the POST method for creating posts
     def post(self, request, *args, **kwargs):
+        today = timezone.now().date()
+        post_count_today = Post.objects.filter(
+            author=request.user, created_at__date=today
+        ).count()
+
+        if post_count_today >= 10:
+            return Response(
+                {"error": "Daily post limit reached (10 per day)."}, status=429
+            )
+
         serializer = PostCreateSerializer(
             data=request.data,
             context={"request": request},
@@ -219,6 +229,16 @@ class CommentListCreateView(ListAPIView):
 
     def post(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
+        today = timezone.now().date()
+        comment_count_today = Comment.objects.filter(
+            author=request.user, created_at__date=today
+        ).count()
+
+        if comment_count_today >= 100:
+            return Response(
+                {"error": "Daily comment+reply limit reached (100 per day)."},
+                status=429,
+            )
         serializer = CommentCreateSerializer(
             data=request.data, context={"request": request, "post": post}
         )
@@ -284,6 +304,16 @@ class ReplyListCreateView(ListAPIView):
 
     def post(self, request, comment_id):
         parent = get_object_or_404(Comment, id=comment_id)
+        today = timezone.now().date()
+        comment_count_today = Comment.objects.filter(
+            author=request.user, created_at__date=today
+        ).count()
+
+        if comment_count_today >= 100:
+            return Response(
+                {"error": "Daily comment+reply limit reached (100 per day)."},
+                status=429,
+            )
 
         if parent.parent is not None:
             return Response({"error": "Cannot reply to a reply"}, status=400)
@@ -347,6 +377,7 @@ class LikeToggleView(APIView):
     def post(self, request, post_id=None, comment_id=None):
         user = request.user
 
+        # Load Target + like_qs first
         if post_id:
             target = get_object_or_404(Post, id=post_id)
             like_qs = Like.objects.filter(user=user, post=target)
@@ -364,6 +395,21 @@ class LikeToggleView(APIView):
         else:
             return Response({"error": "Invalid request"}, status=400)
 
+        # NOW perform rate limit check BEFORE creating LIKE
+        if not like_qs.exists():   # user is about to LIKE
+            today = timezone.now().date()
+            like_count_today = Like.objects.filter(
+                user=user,
+                created_at__date=today
+            ).count()
+
+            if like_count_today >= 1000:
+                return Response(
+                    {"error": "Daily like limit reached (1000 per day)."},
+                    status=429
+                )
+
+        # LIKE TOGGLE
         if like_qs.exists():
             like_qs.delete()
             action = "unliked"
@@ -376,11 +422,9 @@ class LikeToggleView(APIView):
             action = "liked"
 
         return Response(
-            {
-                "status": action,
-                "data": serializer_class(target, context={"request": request}).data,
-            }
+            {"status": action, "data": serializer_class(target, context={"request": request}).data}
         )
+
 
 
 # ---------------------------
