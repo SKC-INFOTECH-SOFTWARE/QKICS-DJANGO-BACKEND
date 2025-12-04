@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Post, Comment, Tag
 from users.models import User
 
+
 # ---------------------------
 # AUTHOR
 # ---------------------------
@@ -71,7 +72,6 @@ class CommentSerializer(serializers.ModelSerializer):
             "id",
             "author",
             "content",
-            "parent",
             "total_likes",
             "is_liked",
             "total_replies",
@@ -90,7 +90,9 @@ class PostSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
-    total_comments = serializers.IntegerField(source="total_comments_count", read_only=True)
+    total_comments = serializers.IntegerField(
+        source="total_comments_count", read_only=True
+    )
     is_liked = serializers.SerializerMethodField()
 
     class Meta:
@@ -130,9 +132,9 @@ class PostCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context["request"]
         author = request.user
-        
+
         validated_data["author"] = author
-        
+
         tag_ids = validated_data.pop("tags", [])
         image = validated_data.pop("image", None)
 
@@ -142,7 +144,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
         # 2) Attach image afterwards
         if image:
             post.image = image
-            post.save()   # <-- triggers update, NOT insert
+            post.save()  # <-- triggers update, NOT insert
 
         # 3) Set tags
         if tag_ids:
@@ -153,15 +155,17 @@ class PostCreateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         tag_ids = validated_data.pop("tags", None)
         post = super().update(instance, validated_data)
-        
+
         if "image" in validated_data and validated_data["image"] is None:
             if post.image:
                 post.image.delete(save=False)
+            post.image = None
+            post.save(update_fields=["image"])
 
         if tag_ids is not None:
             post.tags.set(tag_ids)
         return post
-    
+
     def validate_title(self, value):
         if value and len(value) > 200:
             raise serializers.ValidationError("Title cannot exceed 200 characters.")
@@ -171,7 +175,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
         if len(value) > 8000:
             raise serializers.ValidationError("Content cannot exceed 8000 characters.")
         return value
-    
+
     def validate_tags(self, value):
         if not value:
             return []
@@ -184,6 +188,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Invalid tag IDs provided.")
 
         return value
+
 
 # ---------------------------
 # COMMENT CREATE SERIALIZER
@@ -203,14 +208,17 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 
         if parent:
             if len(value) > 500:
-                raise serializers.ValidationError("Replies cannot exceed 500 characters.")
+                raise serializers.ValidationError(
+                    "Replies cannot exceed 500 characters."
+                )
         else:
             # Comment (top level)
             if len(value) > 1000:
-                raise serializers.ValidationError("Comments cannot exceed 1000 characters.")
+                raise serializers.ValidationError(
+                    "Comments cannot exceed 1000 characters."
+                )
 
         return value
-
 
     def validate_parent(self, value):
         if value and value.parent is not None:
@@ -231,6 +239,10 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 class PostSearchSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    total_likes = serializers.IntegerField(read_only=True)
+    total_comments = serializers.IntegerField(
+        source="total_comments_count", read_only=True
+    )
 
     class Meta:
         model = Post

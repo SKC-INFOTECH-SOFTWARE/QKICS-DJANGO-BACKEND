@@ -15,13 +15,19 @@ from .serializers import (
     CommentCreateSerializer,
     CommentSerializer,
     TagSerializer,
+    PostSearchSerializer,
+    ReplySerializer,
 )
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
 from rest_framework.generics import ListAPIView
 from django.db.models import Count
-from .pagination import PostCursorPagination
+from .pagination import (
+    PostCursorPagination,
+    CommentCursorPagination,
+    ReplyCursorPagination,
+)
 
 
 User = get_user_model()
@@ -54,24 +60,19 @@ class TagListCreateView(APIView):
 # ---------------------------
 # FILTER POSTS BY TAG
 # ---------------------------
-class PostByTagView(APIView):
+class PostByTagView(ListAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = PostSerializer
+    pagination_class = PostCursorPagination
 
-    def get(self, request, slug):
-        tag = get_object_or_404(Tag, slug=slug)
-        posts = (
+    def get_queryset(self):
+        tag = get_object_or_404(Tag, slug=self.kwargs["slug"])
+        return (
             Post.objects.filter(tags=tag)
             .select_related("author")
-            .prefetch_related(
-                "post_likes",
-                "comments__author",
-                "comments__replies__author",
-                "comments__comment_likes",
-                "comments__replies__comment_likes",
-            )
-        )
-        return Response(
-            PostSerializer(posts, many=True, context={"request": request}).data
+            .prefetch_related("tags", "post_likes")
+            .annotate(total_comments_count=Count("comments"))
+            .order_by("-created_at")
         )
 
 
@@ -139,25 +140,20 @@ class PostListCreateView(ListAPIView):
 # ---------------------------
 # POST BY USERNAME
 # ---------------------------
-class PostByUserView(APIView):
+class PostByUserView(ListAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = PostSerializer
+    pagination_class = PostCursorPagination
 
-    def get(self, request, username):
-        user = get_object_or_404(User, username=username)
-        posts = (
+    def get_queryset(self):
+        user = get_object_or_404(User, username=self.kwargs["username"])
+        return (
             Post.objects.filter(author=user)
             .select_related("author")
-            .prefetch_related(
-                "post_likes",
-                "comments__author",
-                "comments__replies__author",
-                "comments__comment_likes",
-                "comments__replies__comment_likes",
-                "tags",
-            )
+            .prefetch_related("tags", "post_likes")
+            .annotate(total_comments_count=Count("comments"))
+            .order_by("-created_at")
         )
-        serializer = PostSerializer(posts, many=True, context={"request": request})
-        return Response(serializer.data)
 
 
 # ---------------------------
@@ -168,14 +164,9 @@ class PostDetailView(APIView):
 
     def get_object(self, pk):
         return get_object_or_404(
-            Post.objects.select_related("author").prefetch_related(
-                "post_likes",
-                "comments__author",
-                "comments__replies__author",
-                "comments__comment_likes",
-                "comments__replies__comment_likes",
-                "tags",
-            ),
+            Post.objects.select_related("author")
+            .prefetch_related("tags", "post_likes")
+            .annotate(total_comments_count=Count("comments")),
             pk=pk,
         )
 
@@ -212,45 +203,35 @@ class PostDetailView(APIView):
 # ---------------------------
 # COMMENT LIST + CREATE
 # ---------------------------
-class CommentListCreateView(APIView):
+class CommentListCreateView(ListAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = CommentSerializer
+    pagination_class = CommentCursorPagination
 
-    def get(self, request, post_id):
-        post = get_object_or_404(Post, id=post_id)
-        comments = (
-            post.comments.filter(parent__isnull=True)
+    def get_queryset(self):
+        post = get_object_or_404(Post, id=self.kwargs["post_id"])
+        return (
+            Comment.objects.filter(post=post, parent__isnull=True)
             .select_related("author")
-            .prefetch_related(
-                "replies__author",
-                "comment_likes",
-                "replies__comment_likes",
-            )
+            .prefetch_related("comment_likes")
+            .order_by("-created_at")
         )
-        serializer = CommentSerializer(
-            comments, many=True, context={"request": request}
-        )
-        return Response(serializer.data)
 
     def post(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
         serializer = CommentCreateSerializer(
             data=request.data, context={"request": request, "post": post}
         )
+
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
-        parent = serializer.validated_data.get("parent")
+        comment = serializer.save()
 
-        if parent:
-            if parent.post != post or parent.parent is not None:
-                return Response({"error": "Invalid parent comment"}, status=400)
-
-        with transaction.atomic():
-            comment = serializer.save()
-            return Response(
-                CommentSerializer(comment, context={"request": request}).data,
-                status=201,
-            )
+        return Response(
+            CommentSerializer(comment, context={"request": request}).data,
+            status=201,
+        )
 
 
 # ---------------------------
@@ -284,19 +265,26 @@ class CommentDetailView(APIView):
 # ---------------------------
 # REPLY LIST + CREATE
 # ---------------------------
-class ReplyListCreateView(APIView):
-    permission_classes = [IsAuthenticatedOrReadOnly]
+from .pagination import ReplyCursorPagination
+from rest_framework.generics import ListAPIView
 
-    def get(self, request, comment_id):
-        comment = get_object_or_404(Comment, id=comment_id)
-        replies = comment.replies.select_related("author").prefetch_related(
-            "comment_likes"
+
+class ReplyListCreateView(ListAPIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = ReplySerializer
+    pagination_class = ReplyCursorPagination
+
+    def get_queryset(self):
+        parent = get_object_or_404(Comment, id=self.kwargs["comment_id"])
+        return (
+            parent.replies.select_related("author")
+            .prefetch_related("comment_likes")
+            .order_by("created_at")
         )
-        serializer = CommentSerializer(replies, many=True, context={"request": request})
-        return Response(serializer.data)
 
     def post(self, request, comment_id):
         parent = get_object_or_404(Comment, id=comment_id)
+
         if parent.parent is not None:
             return Response({"error": "Cannot reply to a reply"}, status=400)
 
@@ -308,16 +296,16 @@ class ReplyListCreateView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
-        with transaction.atomic():
-            reply = Comment.objects.create(
-                post=parent.post,
-                author=request.user,
-                content=serializer.validated_data["content"],
-                parent=parent,
-            )
-            return Response(
-                CommentSerializer(reply, context={"request": request}).data, status=201
-            )
+        reply = Comment.objects.create(
+            post=parent.post,
+            author=request.user,
+            content=serializer.validated_data["content"],
+            parent=parent,
+        )
+
+        return Response(
+            ReplySerializer(reply, context={"request": request}).data, status=201
+        )
 
 
 # ---------------------------
@@ -336,7 +324,7 @@ class ReplyDetailView(APIView):
         serializer = CommentCreateSerializer(reply, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(CommentSerializer(reply, context={"request": request}).data)
+            return Response(ReplySerializer(reply, context={"request": request}).data)
         return Response(serializer.errors, status=400)
 
     def delete(self, request, reply_id):
@@ -367,7 +355,11 @@ class LikeToggleView(APIView):
         elif comment_id:
             target = get_object_or_404(Comment, id=comment_id)
             like_qs = Like.objects.filter(user=user, comment=target)
-            serializer_class = CommentSerializer
+
+            if target.parent:
+                serializer_class = ReplySerializer
+            else:
+                serializer_class = CommentSerializer
 
         else:
             return Response({"error": "Invalid request"}, status=400)
@@ -406,6 +398,7 @@ class SearchPostsView(APIView):
         posts = (
             Post.objects.select_related("author")
             .prefetch_related("tags")
+            .annotate(total_comments_count=Count("comments"))
             .filter(
                 Q(title__icontains=query)
                 | Q(content__icontains=query)
@@ -414,8 +407,6 @@ class SearchPostsView(APIView):
             .distinct()
             .order_by("-created_at")
         )
-
-        from .serializers import PostSearchSerializer
 
         serializer = PostSearchSerializer(
             posts, many=True, context={"request": request}
