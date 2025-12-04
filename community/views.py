@@ -19,6 +19,11 @@ from .serializers import (
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
+from rest_framework.generics import ListAPIView
+from django.db.models import Count
+from .pagination import PostCursorPagination
+
+
 User = get_user_model()
 
 
@@ -104,34 +109,30 @@ class TagDetailView(APIView):
 # ---------------------------
 # POST LIST + CREATE
 # ---------------------------
-class PostListCreateView(APIView):
+class PostListCreateView(ListAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = PostSerializer
+    pagination_class = PostCursorPagination
 
-    def get(self, request):
-        posts = Post.objects.select_related("author").prefetch_related(
-            "post_likes",
-            "comments__author",
-            "comments__replies__author",
-            "comments__comment_likes",
-            "comments__replies__comment_likes",
-            "tags",
+    def get_queryset(self):
+        return (
+            Post.objects.select_related("author")
+            .prefetch_related("tags", "post_likes")
+            .annotate(total_comments_count=Count("comments"))
+            .order_by("-created_at")
         )
-        serializer = PostSerializer(posts, many=True, context={"request": request})
-        return Response(serializer.data)
 
-    def post(self, request):
+    # KEEP the POST method for creating posts
+    def post(self, request, *args, **kwargs):
         serializer = PostCreateSerializer(
             data=request.data,
-            context={"request": request}
+            context={"request": request},
         )
-
         if serializer.is_valid():
-            post = serializer.save()  # author handled inside serializer
+            post = serializer.save()
             return Response(
-                PostSerializer(post, context={"request": request}).data,
-                status=201
+                PostSerializer(post, context={"request": request}).data, status=201
             )
-
         return Response(serializer.errors, status=400)
 
 

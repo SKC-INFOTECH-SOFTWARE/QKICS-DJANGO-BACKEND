@@ -90,7 +90,7 @@ class PostSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
-    total_comments = serializers.IntegerField(read_only=True)
+    total_comments = serializers.IntegerField(source="total_comments_count", read_only=True)
     is_liked = serializers.SerializerMethodField()
 
     class Meta:
@@ -153,6 +153,11 @@ class PostCreateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         tag_ids = validated_data.pop("tags", None)
         post = super().update(instance, validated_data)
+        
+        if "image" in validated_data and validated_data["image"] is None:
+            if post.image:
+                post.image.delete(save=False)
+
         if tag_ids is not None:
             post.tags.set(tag_ids)
         return post
