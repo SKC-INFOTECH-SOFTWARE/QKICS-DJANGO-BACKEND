@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "entrepreneurs",
     'investors',
     "community",
+    "billing",
     "chat",
 ]
 ROOT_URLCONF = "rplatform.urls"
