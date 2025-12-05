@@ -28,6 +28,7 @@ from .pagination import (
     CommentCursorPagination,
     ReplyCursorPagination,
 )
+from datetime import datetime, timedelta
 from django.utils import timezone
 
 User = get_user_model()
@@ -114,7 +115,12 @@ class PostListCreateView(ListAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = PostSerializer
     pagination_class = PostCursorPagination
-
+    
+    def get_permissions(self):
+            if self.request.method == "POST":
+                return [IsAuthenticated()]
+            return [IsAuthenticatedOrReadOnly()]
+        
     def get_queryset(self):
         return (
             Post.objects.select_related("author")
@@ -123,28 +129,36 @@ class PostListCreateView(ListAPIView):
             .order_by("-created_at")
         )
 
-    # KEEP the POST method for creating posts
     def post(self, request, *args, **kwargs):
-        today = timezone.now().date()
-        post_count_today = Post.objects.filter(
-            author=request.user, created_at__date=today
-        ).count()
+        now = timezone.localtime()
+        today = now.date()
 
+        start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        end_of_day = start_of_day + timedelta(days=1)
+
+        post_count_today = Post.objects.filter(
+            author_id=request.user.id,
+            created_at__gte=start_of_day,
+            created_at__lt=end_of_day
+        ).count()
+        
         if post_count_today >= 10:
             return Response(
-                {"error": "Daily post limit reached (10 per day)."}, status=429
+                {"error": "Daily post limit reached (10 per day)."},
+                status=429
             )
 
         serializer = PostCreateSerializer(
             data=request.data,
             context={"request": request},
         )
-        if serializer.is_valid():
-            post = serializer.save()
-            return Response(
-                PostSerializer(post, context={"request": request}).data, status=201
-            )
-        return Response(serializer.errors, status=400)
+        serializer.is_valid(raise_exception=True)
+        post = serializer.save()
+
+        return Response(
+            PostSerializer(post, context={"request": request}).data,
+            status=201
+        )
 
 
 # ---------------------------

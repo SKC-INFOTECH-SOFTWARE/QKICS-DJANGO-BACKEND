@@ -1,12 +1,7 @@
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
-import tzdata
-import os
 
-if os.name == "nt":
-    os.environ["TZ"] = "UTC"
-    
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = config("SECRET_KEY")
