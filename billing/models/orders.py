@@ -18,10 +18,10 @@ PURPOSE_CHOICES = [
 ]
 
 ORDER_STATUS_CHOICES = [
-    ("pending", "Pending"),  # order created but not paid
-    ("paid", "Paid"),  # verified payment
-    ("failed", "Failed"),  # payment attempt failed
-    ("expired", "Expired"),  # timed out or abandoned
+    ("pending", "Pending"), 
+    ("paid", "Paid"), 
+    ("failed", "Failed"), 
+    ("expired", "Expired"), 
 ]
 
 
