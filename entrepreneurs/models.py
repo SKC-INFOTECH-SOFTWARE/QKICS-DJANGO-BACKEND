@@ -44,6 +44,9 @@ class EntrepreneurProfile(models.Model):
     application_status = models.CharField(
         max_length=20, choices=APPLICATION_STATUS_CHOICES, default="draft"
     )
+    
+    application_note = models.TextField(blank=True, null=True)
+    admin_review_note = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

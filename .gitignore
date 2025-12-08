@@ -51,4 +51,7 @@ node_modules/
 dist/
 build/
 test_doc.json
+
+
+.settings/
 "@
