@@ -47,9 +47,16 @@ class EntrepreneurApplicationSubmitSerializer(serializers.Serializer):
     note = serializers.CharField(required=False, allow_blank=True, max_length=1000)
 
     def save(self, profile):
+        note = self.validated_data.get("note", "")
+        profile.application_note = note                # <— SAVE USER NOTE HERE
         profile.application_status = "pending"
-        profile.save(update_fields=["application_status", "updated_at"])
+        profile.save(update_fields=[
+            "application_note",
+            "application_status",
+            "updated_at"
+        ])
         return profile
+
 
 
 # Admin Approval/Rejection
@@ -59,7 +66,8 @@ class EntrepreneurAdminVerifySerializer(serializers.Serializer):
 
     def save(self, profile):
         action = self.validated_data["action"]
-
+        note = self.validated_data.get("note", "")
+        profile.admin_review_note = note
         if action == "approve":
             profile.verified_by_admin = True
             profile.application_status = "approved"

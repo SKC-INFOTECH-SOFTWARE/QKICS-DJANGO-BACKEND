@@ -101,7 +101,7 @@ class EntrepreneurApplicationSubmitView(APIView):
 
         serializer = EntrepreneurApplicationSubmitSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(profile)
+            serializer.save(profile=profile)
             return Response({"detail": "Application submitted successfully."})
         return Response(serializer.errors, status=400)
 
