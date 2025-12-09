@@ -237,7 +237,6 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         expert = self.context["request"].user
         return ExpertSlot.objects.create(
-            expert=expert,
             **validated_data
         )
 
