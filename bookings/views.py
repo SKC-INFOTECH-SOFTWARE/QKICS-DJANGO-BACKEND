@@ -14,6 +14,8 @@ from .serializers import (
     BookingPaymentCreateSerializer,
     BookingPaymentUpdateSerializer,
     BookingReviewSerializer,
+    ExpertSlotCreateSerializer,
+    ExpertSlotUpdateSerializer
 )
 
 # If Razorpay needed:
@@ -234,3 +236,44 @@ class BookingReviewCreateView(generics.CreateAPIView):
             "booking": booking,
             "request": self.request,
         }
+
+# --------------------------
+# Create Slot (Expert)
+# --------------------------
+class ExpertSlotCreateView(generics.CreateAPIView):
+    serializer_class = ExpertSlotCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        expert = self.request.user
+        serializer.save(expert=expert)
+
+
+# --------------------------
+# Update Slot (Expert)
+# --------------------------
+class ExpertSlotUpdateView(generics.UpdateAPIView):
+    queryset = ExpertSlot.objects.all()
+    serializer_class = ExpertSlotUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = "id"
+
+    def perform_update(self, serializer):
+        slot = self.get_object()
+        if slot.expert != self.request.user:
+            raise PermissionDenied("You cannot update this slot.")
+        serializer.save()
+
+
+# --------------------------
+# Delete Slot (Expert)
+# --------------------------
+class ExpertSlotDeleteView(generics.DestroyAPIView):
+    queryset = ExpertSlot.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = "id"
+
+    def perform_destroy(self, instance):
+        if instance.expert != self.request.user:
+            raise PermissionDenied("You cannot delete this slot.")
+        instance.delete()

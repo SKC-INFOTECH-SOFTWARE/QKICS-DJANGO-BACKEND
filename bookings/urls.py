@@ -8,6 +8,9 @@ from .views import (
     BookingPaymentCreateView,
     BookingPaymentConfirmView,
     BookingReviewCreateView,
+    ExpertSlotCreateView,
+    ExpertSlotUpdateView,
+    ExpertSlotDeleteView
 )
 
 urlpatterns = [
@@ -28,4 +31,10 @@ urlpatterns = [
 
     # Reviews
     path("bookings/<uuid:booking_id>/review/", BookingReviewCreateView.as_view(), name="booking-review"),
+    
+    
+    # Slot CRUD
+    path("slots/create/", ExpertSlotCreateView.as_view(), name="slot-create"),
+    path("slots/<uuid:id>/update/", ExpertSlotUpdateView.as_view(), name="slot-update"),
+    path("slots/<uuid:id>/delete/", ExpertSlotDeleteView.as_view(), name="slot-delete"),
 ]

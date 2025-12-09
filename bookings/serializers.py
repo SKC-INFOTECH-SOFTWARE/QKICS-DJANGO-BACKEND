@@ -213,3 +213,51 @@ class BookingReviewSerializer(serializers.ModelSerializer):
         validated_data["expert"] = booking.expert
 
         return super().create(validated_data)
+
+
+# -------------------------------
+# Slot Create Serializer
+# -------------------------------
+class ExpertSlotCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExpertSlot
+        fields = [
+            "start_datetime",
+            "end_datetime",
+            "duration_minutes",
+            "price",
+            "requires_approval",
+        ]
+
+    def validate(self, attrs):
+        if attrs["end_datetime"] <= attrs["start_datetime"]:
+            raise serializers.ValidationError("End time must be after start time.")
+        return attrs
+
+    def create(self, validated_data):
+        expert = self.context["request"].user
+        return ExpertSlot.objects.create(
+            expert=expert,
+            **validated_data
+        )
+
+
+# -------------------------------
+# Slot Update Serializer
+# -------------------------------
+class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExpertSlot
+        fields = [
+            "start_datetime",
+            "end_datetime",
+            "price",
+            "requires_approval",
+            "status"
+        ]
+
+    def validate(self, attrs):
+        if "start_datetime" in attrs and "end_datetime" in attrs:
+            if attrs["end_datetime"] <= attrs["start_datetime"]:
+                raise serializers.ValidationError("End time must be after start time.")
+        return attrs
