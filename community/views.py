@@ -446,7 +446,8 @@ class LikeToggleView(APIView):
 # ---------------------------
 class SearchPostsView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
-
+    pagination_class = PostCursorPagination
+    
     def get(self, request):
         query = request.GET.get("q", "").strip()
 
