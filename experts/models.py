@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+import uuid
 
 User = get_user_model()
 
@@ -11,6 +12,9 @@ class ExpertProfile(models.Model):
         ("approved", "Approved"),
         ("rejected", "Rejected"),
     ]
+    uuid = models.UUIDField(
+        default=uuid.uuid4, unique=True, editable=False, db_index=True
+    )
 
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="expert_profile"
