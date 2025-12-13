@@ -4,9 +4,10 @@ from django.core.validators import RegexValidator
 from PIL import Image
 from io import BytesIO
 from django.core.files.base import ContentFile
-import os
+import uuid
 from django.conf import settings
 from django.core.files.storage import default_storage
+
 
 class User(AbstractUser):
 
@@ -25,19 +26,14 @@ class User(AbstractUser):
         ("banned", "Banned"),
     ]
 
-    # USER ROLE
-    user_type = models.CharField(
-        max_length=20,
-        choices=USER_TYPES,
-        default="normal"
+    uuid = models.UUIDField(
+        default=uuid.uuid4, unique=True, editable=False, db_index=True
     )
+    # USER ROLE
+    user_type = models.CharField(max_length=20, choices=USER_TYPES, default="normal")
 
     # ACCOUNT STATUS
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_TYPES,
-        default="active"
-    )
+    status = models.CharField(max_length=20, choices=STATUS_TYPES, default="active")
 
     # OPTIONAL PHONE NUMBER
     phone = models.CharField(
@@ -46,16 +42,14 @@ class User(AbstractUser):
         validators=[
             RegexValidator(
                 regex=r"^[0-9]{7,15}$",
-                message="Phone number must contain only digits (7–15 digits)."
+                message="Phone number must contain only digits (7–15 digits).",
             )
-        ]
+        ],
     )
 
     # OPTIONAL BASIC PROFILE PICTURE
     profile_picture = models.ImageField(
-        upload_to="users/profile_pics/",
-        blank=True,
-        null=True
+        upload_to="users/profile_pics/", blank=True, null=True
     )
 
     # TIMESTAMPS
@@ -66,7 +60,7 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.user_type})"
-    
+
     def save(self, *args, **kwargs):
         # Get the previous record (if exists)
         try:

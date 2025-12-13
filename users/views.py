@@ -55,6 +55,7 @@ class LoginAPIView(APIView):
                 "message": "Login successful",
                 "user": {
                     "id": user.id,
+                    "uuid": str(user.uuid),
                     "username": user.username,
                     "user_type": user.user_type,
                     "profile_picture": (

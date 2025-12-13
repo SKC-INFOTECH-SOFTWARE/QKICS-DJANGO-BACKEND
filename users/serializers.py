@@ -77,6 +77,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id",
+            "uuid",
             "username",
             "email",
             "phone",
@@ -87,6 +88,7 @@ class UserSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = [
+            "uuid",
             "user_type",
             "status",
             "created_at",
@@ -118,6 +120,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id",
+            "uuid",
             "username",
             "email",
             "phone",
