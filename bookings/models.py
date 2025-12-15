@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.db.models import Q
 
 User = settings.AUTH_USER_MODEL  # assumes custom user or 'auth.User'
 
@@ -12,7 +13,8 @@ class ExpertSlot(models.Model):
     Represents a single slot created by an Expert.
     Each slot is a concrete window (start/end). Capacity is 1 by business rule.
     """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     expert = models.ForeignKey(
         'users.User', on_delete=models.CASCADE, related_name='expert_slots'
     )  # or 'experts.ExpertProfile' if you keep profile separate
@@ -45,7 +47,8 @@ class SlotRecurringPattern(models.Model):
     Optional lightweight recurring pattern for weekly slots.
     Create concrete ExpertSlot instances from this pattern in a background job.
     """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     expert = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='slot_patterns')
     weekday = models.PositiveSmallIntegerField()  # 0=Monday .. 6=Sunday (or 0..6 as you prefer)
     start_time = models.TimeField()
@@ -84,8 +87,9 @@ class Booking(models.Model):
         (STATUS_DECLINED, 'Declined'),
         (STATUS_FAILED, 'Failed'),
     )
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookings')
     expert = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='bookings_as_expert')
     slot = models.ForeignKey(ExpertSlot, on_delete=models.PROTECT, related_name='bookings')
@@ -113,13 +117,27 @@ class Booking(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['user', 'status']),
             models.Index(fields=['expert', 'status']),
             models.Index(fields=['start_datetime']),
         ]
-        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=["slot"],
+                condition=Q(
+                    status__in=[
+                        'AWAITING_PAYMENT',
+                        'PAID',
+                        'CONFIRMED',
+                    ]
+                ),
+                name="unique_active_booking_per_slot",
+            )
+        ]
 
+        
     def __str__(self):
         return f"Booking {self.id} | {self.user} → {self.expert} @ {self.start_datetime.isoformat()}"
 
@@ -153,7 +171,9 @@ class BookingPayment(models.Model):
         (STATUS_FAILED, 'Failed'),
     )
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='payments')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
     gateway = models.CharField(max_length=24, choices=GATEWAY_CHOICES, default=GATEWAY_RAZORPAY)
@@ -180,7 +200,8 @@ class BookingReview(models.Model):
     """
     Rating/review for a completed booking.
     """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     booking = models.OneToOneField(Booking, on_delete=models.CASCADE, related_name='review')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='booking_reviews')
     expert = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='reviews')

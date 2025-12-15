@@ -28,7 +28,7 @@ from .serializers import (
 # --------------------------
 class ExpertSlotListView(generics.ListAPIView):
     serializer_class = ExpertSlotSerializer
-
+    pagination_class = None
     def get_queryset(self):
         expert_id = self.kwargs["expert_id"]
         return ExpertSlot.objects.filter(
