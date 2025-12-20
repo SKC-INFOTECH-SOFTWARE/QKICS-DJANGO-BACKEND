@@ -13,6 +13,7 @@ class ExpertSlotSerializer(serializers.ModelSerializer):
         model = ExpertSlot
         fields = [
             "id",
+            "uuid",
             "expert",
             "expert_name",
             "start_datetime",

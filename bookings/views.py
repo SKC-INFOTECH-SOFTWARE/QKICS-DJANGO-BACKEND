@@ -29,13 +29,15 @@ from .serializers import (
 class ExpertSlotListView(generics.ListAPIView):
     serializer_class = ExpertSlotSerializer
     pagination_class = None
+
     def get_queryset(self):
-        expert_id = self.kwargs["expert_id"]
+        expert_uuid = self.kwargs["expert_id"]
         return ExpertSlot.objects.filter(
-            expert_id=expert_id,
-            status="ACTIVE",
-            start_datetime__gte=timezone.now()
+            expert__uuid=expert_uuid
         ).order_by("start_datetime")
+
+
+
 
 
 # --------------------------
@@ -256,7 +258,8 @@ class ExpertSlotUpdateView(generics.UpdateAPIView):
     queryset = ExpertSlot.objects.all()
     serializer_class = ExpertSlotUpdateSerializer
     permission_classes = [permissions.IsAuthenticated]
-    lookup_field = "id"
+    lookup_field = "uuid"
+    lookup_url_kwarg = "id"
 
     def perform_update(self, serializer):
         slot = self.get_object()
@@ -271,7 +274,8 @@ class ExpertSlotUpdateView(generics.UpdateAPIView):
 class ExpertSlotDeleteView(generics.DestroyAPIView):
     queryset = ExpertSlot.objects.all()
     permission_classes = [permissions.IsAuthenticated]
-    lookup_field = "id"
+    lookup_field = "uuid"
+    lookup_url_kwarg = "id"
 
     def perform_destroy(self, instance):
         if instance.expert != self.request.user:
