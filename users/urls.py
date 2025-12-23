@@ -13,6 +13,7 @@ from .views import (
     AdminUserListAPIView,
     CookieTokenRefreshView,
     AdminCreateUserAPIView,
+    UnifiedPublicProfileAPIView,
 )
 
 urlpatterns = [
@@ -20,6 +21,9 @@ urlpatterns = [
     path("register/", RegisterAPIView.as_view(), name="register"),
     path("login/", LoginAPIView.as_view(), name="login"),
     path("token/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
+    
+    # Public Profile (Unified)
+    path("profiles/<str:username>/", UnifiedPublicProfileAPIView.as_view(), name="public-profile",),
 
     # User Profile Management
     path("me/", GetMyProfileAPIView.as_view(), name="my-profile"),

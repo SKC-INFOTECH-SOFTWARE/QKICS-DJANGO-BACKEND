@@ -16,6 +16,17 @@ from .serializers import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
+# Public Profile access includes ---------------------------------------
+from experts.models import ExpertProfile
+from entrepreneurs.models import EntrepreneurProfile
+from investors.models import Investor
+
+from experts.serializers import ExpertProfileReadSerializer
+from entrepreneurs.serializers import EntrepreneurProfileReadSerializer
+from investors.serializers import InvestorReadSerializer
+from users.serializers import PublicUserProfileSerializer
+from django.shortcuts import get_object_or_404
+#------------------------------------------------------------------------
 
 # ────────────────────── REGISTER API ──────────────────────
 class RegisterAPIView(APIView):
@@ -271,6 +282,7 @@ class CookieTokenRefreshView(TokenRefreshView):
         except (InvalidToken, TokenError):
             return Response({"error": "Invalid or expired refresh token"}, status=401)
 
+
 # ────────────────────── ADMIN: CREATE ANY USER TYPE ──────────────────────
 class AdminCreateUserAPIView(APIView):
     """
@@ -280,6 +292,7 @@ class AdminCreateUserAPIView(APIView):
     - entrepreneur
     - investor
     """
+
     permission_classes = [IsAdmin]
 
     def post(self, request):
@@ -327,4 +340,58 @@ class AdminCreateUserAPIView(APIView):
                 "temporary_password": password,  # Admin can send this
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+
+
+class UnifiedPublicProfileAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, username):
+        user = get_object_or_404(User, username=username, is_active=True)
+
+        # 1️⃣ Expert (highest priority)
+        expert = ExpertProfile.objects.filter(
+            user=user, verified_by_admin=True, application_status="approved"
+        ).first()
+        if expert:
+            return Response(
+                {"role": "expert", "profile": ExpertProfileReadSerializer(expert).data},
+                status=status.HTTP_200_OK,
+            )
+
+        # 2️⃣ Entrepreneur
+        entrepreneur = EntrepreneurProfile.objects.filter(
+            user=user, application_status="approved"
+        ).first()
+        if entrepreneur:
+            return Response(
+                {
+                    "role": "entrepreneur",
+                    "profile": EntrepreneurProfileReadSerializer(entrepreneur).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # 3️⃣ Investor
+        investor = Investor.objects.filter(
+            user=user, application_status="approved"
+        ).first()
+        if investor:
+            return Response(
+                {
+                    "role": "investor",
+                    "profile": InvestorReadSerializer(investor).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # 4️⃣ Normal user fallback
+        return Response(
+            {
+                "role": "user",
+                "profile": PublicUserProfileSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
         )
