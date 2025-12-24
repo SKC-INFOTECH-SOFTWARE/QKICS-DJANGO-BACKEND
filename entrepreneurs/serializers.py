@@ -9,7 +9,7 @@ User = get_user_model()
 class PublicUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "email", "user_type", ]
+        fields = ["id", "username", "first_name", "last_name", "email", "user_type", "profile_picture"]
 
 
 # READ – Public List & Detail + Self Dashboard

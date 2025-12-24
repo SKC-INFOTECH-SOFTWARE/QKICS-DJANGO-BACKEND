@@ -4,9 +4,6 @@ from .views import (
     BookingListCreateView,
     BookingDetailView,
     BookingApprovalView,
-    BookingPaymentCreateView,
-    BookingPaymentConfirmView,
-    BookingReviewCreateView,
     ExpertSlotCreateView,
     ExpertSlotUpdateView,
     ExpertSlotDeleteView,
@@ -50,24 +47,5 @@ urlpatterns = [
         "<uuid:booking_id>/approve/",
         BookingApprovalView.as_view(),
         name="booking-approve",
-    ),
-
-    # Payments
-    path(
-        "<uuid:booking_id>/payment/",
-        BookingPaymentCreateView.as_view(),
-        name="payment-create",
-    ),
-    path(
-        "payment/confirm/",
-        BookingPaymentConfirmView.as_view(),
-        name="payment-confirm",
-    ),
-
-    # Reviews
-    path(
-        "<uuid:booking_id>/review/",
-        BookingReviewCreateView.as_view(),
-        name="booking-review",
     ),
 ]

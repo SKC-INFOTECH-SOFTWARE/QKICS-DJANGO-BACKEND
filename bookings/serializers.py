@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ExpertSlot, Booking, BookingPayment, BookingReview
+from .models import ExpertSlot, Booking
 from django.utils import timezone
 
 
@@ -143,77 +143,6 @@ class BookingApprovalSerializer(serializers.Serializer):
             raise serializers.ValidationError("Booking is not waiting for approval.")
 
         return attrs
-
-
-# -------------------------------
-# Payment Create Serializer (Razorpay Order)
-# -------------------------------
-class BookingPaymentCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BookingPayment
-        fields = ["id", "booking", "amount", "gateway", "status"]
-        read_only_fields = ["id", "status", "gateway", "booking"]
-
-
-# -------------------------------
-# Payment Update Serializer (Webhook or Client Confirm)
-# -------------------------------
-class BookingPaymentUpdateSerializer(serializers.Serializer):
-    order_id = serializers.CharField()
-    payment_id = serializers.CharField()
-    payment_signature = serializers.CharField()
-
-    def validate(self, attrs):
-        # Razorpay signature verification done in view
-        return attrs
-
-
-# -------------------------------
-# Booking Review Serializer
-# -------------------------------
-class BookingReviewSerializer(serializers.ModelSerializer):
-    user_name = serializers.CharField(source="user.username", read_only=True)
-    expert_name = serializers.CharField(source="expert.username", read_only=True)
-
-    class Meta:
-        model = BookingReview
-        fields = [
-            "id",
-            "booking",
-            "user",
-            "expert",
-            "user_name",
-            "expert_name",
-            "rating",
-            "comment",
-            "created_at",
-        ]
-        read_only_fields = ["id", "user", "expert", "created_at"]
-
-    def validate(self, attrs):
-        booking = self.context["booking"]
-        user = self.context["request"].user
-
-        if booking.status != Booking.STATUS_COMPLETED:
-            raise serializers.ValidationError("Cannot review an incomplete session.")
-
-        if booking.user != user:
-            raise serializers.ValidationError("You can only review your own booking.")
-
-        if hasattr(booking, "review"):
-            raise serializers.ValidationError("Review already exists for this booking.")
-
-        return attrs
-
-    def create(self, validated_data):
-        booking = self.context["booking"]
-        user = self.context["request"].user
-
-        validated_data["booking"] = booking
-        validated_data["user"] = user
-        validated_data["expert"] = booking.expert
-
-        return super().create(validated_data)
 
 
 # -------------------------------

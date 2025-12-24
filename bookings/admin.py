@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ExpertSlot, SlotRecurringPattern, Booking, BookingPayment, BookingReview
+from .models import ExpertSlot, SlotRecurringPattern, Booking
 
 @admin.register(ExpertSlot)
 class ExpertSlotAdmin(admin.ModelAdmin):
@@ -17,12 +17,3 @@ class BookingAdmin(admin.ModelAdmin):
     list_filter = ('status', )
     search_fields = ('user__email', 'expert__email')
 
-@admin.register(BookingPayment)
-class BookingPaymentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'booking', 'user', 'amount', 'status', 'created_at')
-    list_filter = ('status', 'gateway')
-
-@admin.register(BookingReview)
-class BookingReviewAdmin(admin.ModelAdmin):
-    list_display = ('id', 'booking', 'expert', 'rating', 'created_at')
-    search_fields = ('expert__email', )

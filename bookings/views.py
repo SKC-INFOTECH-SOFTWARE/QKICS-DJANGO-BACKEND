@@ -5,15 +5,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from .models import ExpertSlot, Booking, BookingPayment, BookingReview
+from .models import ExpertSlot, Booking
 from .serializers import (
     ExpertSlotSerializer,
     BookingCreateSerializer,
     BookingSerializer,
     BookingApprovalSerializer,
-    BookingPaymentCreateSerializer,
-    BookingPaymentUpdateSerializer,
-    BookingReviewSerializer,
     ExpertSlotCreateSerializer,
     ExpertSlotUpdateSerializer,
 )
@@ -135,102 +132,3 @@ class BookingApprovalView(APIView):
         booking.status = Booking.STATUS_DECLINED
         booking.save()
         return Response({"detail": "Booking declined"}, status=200)
-
-
-# ============================================================
-# PAYMENT VIEWS
-# ============================================================
-
-
-# Create payment order for an approved booking
-class BookingPaymentCreateView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, booking_id):
-        try:
-            booking = Booking.objects.get(uuid=booking_id)
-        except Booking.DoesNotExist:
-            return Response({"detail": "Booking not found"}, status=404)
-
-        if booking.user != request.user:
-            raise PermissionDenied("Not your booking.")
-
-        if booking.status != Booking.STATUS_AWAITING_PAYMENT:
-            raise ValidationError("Booking is not ready for payment.")
-
-        order = {
-            "id": str(uuid.uuid4()),
-            "amount": float(booking.price),
-            "currency": "INR",
-        }
-
-        payment = BookingPayment.objects.create(
-            booking=booking,
-            user=request.user,
-            amount=booking.price,
-            order_id=order["id"],
-            status=BookingPayment.STATUS_CREATED,
-        )
-
-        return Response(
-            {"order": order, "payment": BookingPaymentCreateSerializer(payment).data},
-            status=201,
-        )
-
-
-# Confirm payment and activate booking session
-class BookingPaymentConfirmView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        serializer = BookingPaymentUpdateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        order_id = serializer.validated_data["order_id"]
-        payment_id = serializer.validated_data["payment_id"]
-        signature = serializer.validated_data["payment_signature"]
-
-        try:
-            payment = BookingPayment.objects.get(order_id=order_id)
-        except BookingPayment.DoesNotExist:
-            return Response({"detail": "Payment not found"}, status=404)
-
-        booking = payment.booking
-
-        payment.payment_id = payment_id
-        payment.payment_signature = signature
-        payment.status = BookingPayment.STATUS_SUCCESS
-        payment.paid_at = timezone.now()
-        payment.save()
-
-        booking.status = Booking.STATUS_CONFIRMED
-        booking.paid_at = timezone.now()
-        booking.confirmed_at = timezone.now()
-        booking.chat_room_id = uuid.uuid4()
-        booking.save()
-
-        return Response({"detail": "Payment successful, booking confirmed"}, status=200)
-
-
-# ============================================================
-# REVIEW VIEWS
-# ============================================================
-
-
-# Submit review for a completed booking
-class BookingReviewCreateView(generics.CreateAPIView):
-    serializer_class = BookingReviewSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_serializer_context(self):
-        booking_id = self.kwargs["booking_id"]
-
-        try:
-            booking = Booking.objects.get(uuid=booking_id)
-        except Booking.DoesNotExist:
-            raise ValidationError("Booking not found.")
-
-        return {
-            "booking": booking,
-            "request": self.request,
-        }
