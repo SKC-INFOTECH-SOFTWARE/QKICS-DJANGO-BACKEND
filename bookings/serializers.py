@@ -11,6 +11,7 @@ from .models import ExpertSlot, Booking
 
 class ExpertSlotSerializer(serializers.ModelSerializer):
     """Read-only serializer for listing slots"""
+
     expert_name = serializers.CharField(source="expert.username", read_only=True)
     is_available = serializers.SerializerMethodField()
 
@@ -40,7 +41,7 @@ class ExpertSlotSerializer(serializers.ModelSerializer):
 
 class ExpertSlotCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating new slots"""
-    
+
     class Meta:
         model = ExpertSlot
         fields = [
@@ -54,22 +55,20 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
     def validate_start_datetime(self, value):
         """Ensure slot is not in the past"""
         if value <= timezone.now():
-            raise serializers.ValidationError(
-                "Cannot create slots in the past."
-            )
+            raise serializers.ValidationError("Cannot create slots in the past.")
         return value
 
     def validate(self, attrs):
         """Validate time consistency and check for overlaps"""
         start = attrs.get("start_datetime")
         end = attrs.get("end_datetime")
-        
+
         # Validate time order
         if end <= start:
-            raise serializers.ValidationError({
-                "end_datetime": "End time must be after start time."
-            })
-        
+            raise serializers.ValidationError(
+                {"end_datetime": "End time must be after start time."}
+            )
+
         # Check for overlapping slots
         expert = self.context["request"].user
         overlapping = ExpertSlot.objects.filter(
@@ -78,23 +77,18 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
             start_datetime__lt=end,
             end_datetime__gt=start,
         ).exists()
-        
+
         if overlapping:
             raise serializers.ValidationError(
                 "This slot overlaps with an existing slot."
             )
-        
-        return attrs
 
-    def create(self, validated_data):
-        """Create slot with expert from request"""
-        expert = self.context["request"].user
-        return ExpertSlot.objects.create(expert=expert, **validated_data)
+        return attrs
 
 
 class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating existing slots"""
-    
+
     class Meta:
         model = ExpertSlot
         fields = [
@@ -108,9 +102,7 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
     def validate_start_datetime(self, value):
         """Prevent moving slot to the past"""
         if value <= timezone.now():
-            raise serializers.ValidationError(
-                "Cannot move slot to the past."
-            )
+            raise serializers.ValidationError("Cannot move slot to the past.")
         return value
 
     def validate(self, attrs):
@@ -118,13 +110,13 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
         instance = self.instance
         start = attrs.get("start_datetime", instance.start_datetime)
         end = attrs.get("end_datetime", instance.end_datetime)
-        
+
         # Validate time order
         if end <= start:
-            raise serializers.ValidationError({
-                "end_datetime": "End time must be after start time."
-            })
-        
+            raise serializers.ValidationError(
+                {"end_datetime": "End time must be after start time."}
+            )
+
         return attrs
 
     def update(self, instance, validated_data):
@@ -138,18 +130,22 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
                 "Cannot modify slot with active bookings. "
                 "Cancel or complete bookings first, or disable the slot."
             )
-        
+
         # Check for overlaps with new times
         start = validated_data.get("start_datetime", instance.start_datetime)
         end = validated_data.get("end_datetime", instance.end_datetime)
-        
-        overlapping = ExpertSlot.objects.filter(
-            expert=instance.expert,
-            status="ACTIVE",
-            start_datetime__lt=end,
-            end_datetime__gt=start,
-        ).exclude(id=instance.id).exists()
-        
+
+        overlapping = (
+            ExpertSlot.objects.filter(
+                expert=instance.expert,
+                status="ACTIVE",
+                start_datetime__lt=end,
+                end_datetime__gt=start,
+            )
+            .exclude(id=instance.id)
+            .exists()
+        )
+
         if overlapping:
             raise serializers.ValidationError(
                 "Updated times overlap with an existing slot."
@@ -165,6 +161,7 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
 
 class BookingSerializer(serializers.ModelSerializer):
     """Read-only serializer for booking details"""
+
     user_name = serializers.CharField(source="user.username", read_only=True)
     expert_name = serializers.CharField(source="expert.username", read_only=True)
     slot_uuid = serializers.UUIDField(source="slot.uuid", read_only=True)
@@ -216,6 +213,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     Serializer for creating new bookings.
     CRITICAL: Entire operation wrapped in transaction for race condition prevention.
     """
+
     slot_id = serializers.UUIDField(write_only=True)
 
     class Meta:
@@ -308,7 +306,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             requires_expert_approval=slot.requires_approval,
             status=initial_status,
         )
-        
+
         # Compute platform fees
         booking.compute_fee_snapshot()
         booking.save()
@@ -318,72 +316,78 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
 class BookingApprovalSerializer(serializers.Serializer):
     """Serializer for expert to approve/decline bookings"""
+
     approve = serializers.BooleanField()
     decline_reason = serializers.CharField(
-        required=False, 
+        required=False,
         allow_blank=True,
         max_length=500,
-        help_text="Reason for declining (optional)"
+        help_text="Reason for declining (optional)",
     )
 
     def validate(self, attrs):
         """Validate booking can be approved/declined"""
         booking = self.context["booking"]
         approve = attrs.get("approve")
-        
+
         # CRITICAL: Validate current status
         if booking.status != Booking.STATUS_PENDING:
             raise serializers.ValidationError(
                 f"Cannot approve/decline booking in '{booking.status}' status. "
                 f"Only PENDING bookings can be approved or declined."
             )
-        
+
         # If approving, check slot hasn't been taken
         if approve:
             # Check if another booking has taken the slot
-            conflicting_booking = Booking.objects.filter(
-                slot=booking.slot,
-                status__in=[
-                    Booking.STATUS_AWAITING_PAYMENT,
-                    Booking.STATUS_PAID,
-                    Booking.STATUS_CONFIRMED,
-                ],
-            ).exclude(id=booking.id).exists()
-            
+            conflicting_booking = (
+                Booking.objects.filter(
+                    slot=booking.slot,
+                    status__in=[
+                        Booking.STATUS_AWAITING_PAYMENT,
+                        Booking.STATUS_PAID,
+                        Booking.STATUS_CONFIRMED,
+                    ],
+                )
+                .exclude(id=booking.id)
+                .exists()
+            )
+
             if conflicting_booking:
                 raise serializers.ValidationError(
                     "Cannot approve: slot has already been booked by another user."
                 )
-        
+
         # If declining without approval, reason is helpful but not required
         if not approve and not attrs.get("decline_reason"):
             attrs["decline_reason"] = "Declined by expert"
-        
+
         return attrs
 
 
 class BookingCancellationSerializer(serializers.Serializer):
     """Serializer for cancelling bookings"""
+
     cancellation_reason = serializers.CharField(
         required=False,
         allow_blank=True,
         max_length=500,
-        help_text="Reason for cancellation (optional)"
+        help_text="Reason for cancellation (optional)",
     )
 
     def validate(self, attrs):
         """Validate booking can be cancelled"""
         booking = self.context["booking"]
-        
+
         if not booking.can_be_cancelled():
             raise serializers.ValidationError(
                 f"Cannot cancel booking in '{booking.status}' status."
             )
-        
+
         # Set default reason if not provided
         if not attrs.get("cancellation_reason"):
             attrs["cancellation_reason"] = "Cancelled by user"
-        
+
         return attrs
 
 
@@ -392,6 +396,7 @@ class BookingStatusUpdateSerializer(serializers.Serializer):
     Generic serializer for status updates (for admin/system use).
     Validates state transitions.
     """
+
     status = serializers.ChoiceField(choices=Booking.STATUS_CHOICES)
     reason = serializers.CharField(required=False, allow_blank=True, max_length=500)
 
@@ -399,11 +404,11 @@ class BookingStatusUpdateSerializer(serializers.Serializer):
         """Validate status transition is allowed"""
         booking = self.context["booking"]
         new_status = attrs.get("status")
-        
+
         if not booking.can_transition_to(new_status):
             raise serializers.ValidationError(
                 f"Cannot transition from '{booking.status}' to '{new_status}'. "
                 f"Invalid state transition."
             )
-        
+
         return attrs

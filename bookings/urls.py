@@ -37,17 +37,17 @@ urlpatterns = [
     # BOOKINGS
     # =======================
     path(
-        "bookings/",
+        "",
         BookingListCreateView.as_view(),
         name="booking-list-create",
     ),
     path(
-        "bookings/<uuid:uuid>/",
+        "<uuid:uuid>/",
         BookingDetailView.as_view(),
         name="booking-detail",
     ),
     path(
-        "bookings/<uuid:booking_id>/approve/",
+        "<uuid:booking_id>/approve/",
         BookingApprovalView.as_view(),
         name="booking-approve",
     ),

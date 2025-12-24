@@ -26,26 +26,24 @@ class ExpertSlotListView(generics.ListAPIView):
     Public list of ACTIVE slots for a given expert.
     Used by users to view availability.
     """
+
     serializer_class = ExpertSlotSerializer
     pagination_class = None
 
     def get_queryset(self):
         expert_uuid = self.kwargs["expert_id"]
-        return (
-            ExpertSlot.objects
-            .filter(
-                expert__uuid=expert_uuid,
-                status="ACTIVE",
-                start_datetime__gt=timezone.now(),
-            )
-            .order_by("start_datetime")
-        )
+        return ExpertSlot.objects.filter(
+            expert__uuid=expert_uuid,
+            status="ACTIVE",
+            start_datetime__gt=timezone.now(),
+        ).order_by("start_datetime")
 
 
 class ExpertSlotCreateView(generics.CreateAPIView):
     """
     Expert creates a new slot.
     """
+
     serializer_class = ExpertSlotCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -57,6 +55,7 @@ class ExpertSlotUpdateView(generics.UpdateAPIView):
     """
     Expert updates own slot.
     """
+
     queryset = ExpertSlot.objects.all()
     serializer_class = ExpertSlotUpdateSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -76,6 +75,7 @@ class ExpertSlotDeleteView(generics.DestroyAPIView):
     """
     Expert deletes own slot.
     """
+
     queryset = ExpertSlot.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = "uuid"
@@ -104,7 +104,9 @@ class BookingListCreateView(generics.ListCreateAPIView):
     - Expert: sees bookings where they are expert (as_expert=true)
     - POST: create booking
     """
+
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_serializer_class(self):
         return (
@@ -128,6 +130,7 @@ class BookingDetailView(generics.RetrieveAPIView):
     Retrieve booking by UUID.
     Only participant (user or expert) can access.
     """
+
     serializer_class = BookingSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = Booking.objects.all()
@@ -147,6 +150,7 @@ class BookingApprovalView(APIView):
     """
     Expert approves or declines a PENDING booking.
     """
+
     permission_classes = [permissions.IsAuthenticated]
 
     @transaction.atomic
