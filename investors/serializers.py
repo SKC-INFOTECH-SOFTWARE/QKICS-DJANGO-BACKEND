@@ -33,9 +33,9 @@ class InvestorReadSerializer(serializers.ModelSerializer):
             "investor_type", "investor_type_display", "verified_by_admin", "is_active",
             "created_at", "updated_at"
         ]
-
+    
     def get_user(self, obj):
-        return {"id": obj.user.id, "username": obj.user.username}
+        return {"id": obj.user.id,"uuid":obj.user.uuid,  "username": obj.user.username,"first_name": obj.user.first_name, "last_name": obj.user.last_name, "user_type": obj.user.user_type, "profile_picture": obj.user.profile_picture.url if obj.user.profile_picture else None}
 
     def get_profile_picture(self, obj):
         if obj.user.profile_picture:

@@ -9,13 +9,7 @@ class PublicUserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "uuid",
-            "username",
-            "first_name",
-            "last_name",
-            "profile_picture",
-            "created_at",
-        ]
+            "id", "uuid", "username", "first_name", "last_name", "user_type", "profile_picture"]
 
 
 # -------------------------------------
