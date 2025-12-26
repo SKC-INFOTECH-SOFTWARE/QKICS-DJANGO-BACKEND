@@ -6,6 +6,11 @@ from .serializers import FakeBookingPaymentSerializer, PaymentSerializer
 from .services.fake import FakePaymentService
 from .models import Payment
 
+from .services.fake import FakePaymentService
+from .models import Payment
+
+# ✅ ADD THIS IMPORT
+from bookings.services.confirm_booking import confirm_booking_after_payment
 
 class FakeBookingPaymentView(APIView):
     """
@@ -32,6 +37,9 @@ class FakeBookingPaymentView(APIView):
 
         # Step 2: confirm payment immediately (FAKE)
         payment = payment_service.confirm_payment(payment=payment)
+        
+        # STEP 3: CONFIRM BOOKING AFTER PAYMENT
+        confirm_booking_after_payment(payment=payment)
 
         return Response(
             PaymentSerializer(payment).data,
