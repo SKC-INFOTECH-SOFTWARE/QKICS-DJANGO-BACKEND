@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "chat",
     "bookings",
     "payments",
+    "subscriptions",
 ]
 ROOT_URLCONF = "rplatform.urls"
 ASGI_APPLICATION = "rplatform.asgi.application"
