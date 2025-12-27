@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/v1/chat/", include("chat.urls")),
     path("api/v1/bookings/", include("bookings.urls")),
     path("api/v1/payments/", include("payments.urls")),
+    path("api/v1/subscriptions/", include("subscriptions.urls")),
 ]
 
 if settings.DEBUG:
