@@ -115,12 +115,12 @@ class PostListCreateView(ListAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = PostSerializer
     pagination_class = PostCursorPagination
-    
+
     def get_permissions(self):
-            if self.request.method == "POST":
-                return [IsAuthenticated()]
-            return [IsAuthenticatedOrReadOnly()]
-        
+        if self.request.method == "POST":
+            return [IsAuthenticated()]
+        return [IsAuthenticatedOrReadOnly()]
+
     def get_queryset(self):
         return (
             Post.objects.select_related("author")
@@ -139,13 +139,12 @@ class PostListCreateView(ListAPIView):
         post_count_today = Post.objects.filter(
             author_id=request.user.id,
             created_at__gte=start_of_day,
-            created_at__lt=end_of_day
+            created_at__lt=end_of_day,
         ).count()
-        
+
         if post_count_today >= 10:
             return Response(
-                {"error": "Daily post limit reached (10 per day)."},
-                status=429
+                {"error": "Daily post limit reached (10 per day)."}, status=429
             )
 
         serializer = PostCreateSerializer(
@@ -156,8 +155,7 @@ class PostListCreateView(ListAPIView):
         post = serializer.save()
 
         return Response(
-            PostSerializer(post, context={"request": request}).data,
-            status=201
+            PostSerializer(post, context={"request": request}).data, status=201
         )
 
 
@@ -410,17 +408,15 @@ class LikeToggleView(APIView):
             return Response({"error": "Invalid request"}, status=400)
 
         # NOW perform rate limit check BEFORE creating LIKE
-        if not like_qs.exists():   # user is about to LIKE
+        if not like_qs.exists():  # user is about to LIKE
             today = timezone.now().date()
             like_count_today = Like.objects.filter(
-                user=user,
-                created_at__date=today
+                user=user, created_at__date=today
             ).count()
 
             if like_count_today >= 1000:
                 return Response(
-                    {"error": "Daily like limit reached (1000 per day)."},
-                    status=429
+                    {"error": "Daily like limit reached (1000 per day)."}, status=429
                 )
 
         # LIKE TOGGLE
@@ -436,9 +432,11 @@ class LikeToggleView(APIView):
             action = "liked"
 
         return Response(
-            {"status": action, "data": serializer_class(target, context={"request": request}).data}
+            {
+                "status": action,
+                "data": serializer_class(target, context={"request": request}).data,
+            }
         )
-
 
 
 # ---------------------------
@@ -447,7 +445,7 @@ class LikeToggleView(APIView):
 class SearchPostsView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
     pagination_class = PostCursorPagination
-    
+
     def get(self, request):
         query = request.GET.get("q", "").strip()
 
@@ -460,7 +458,8 @@ class SearchPostsView(APIView):
             .annotate(total_comments_count=Count("comments"))
             .filter(
                 Q(title__icontains=query)
-                | Q(content__icontains=query)
+                | Q(preview_content__icontains=query)
+                | Q(full_content__icontains=query)
                 | Q(tags__name__icontains=query)
             )
             .distinct()
