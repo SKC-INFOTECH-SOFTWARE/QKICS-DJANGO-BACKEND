@@ -8,7 +8,6 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 import secrets
 
-
 User = get_user_model()
 
 
@@ -23,7 +22,7 @@ def post_image_upload_path(instance, filename):
 
 
 # ---------------------------
-# TAG MODEL (ADMIN CONTROLLED)
+# TAG MODEL
 # ---------------------------
 class Tag(models.Model):
     name = models.CharField(max_length=80, unique=True)
@@ -45,7 +44,6 @@ class Tag(models.Model):
                 counter += 1
                 slug = f"{base}-{counter}"
             self.slug = slug
-
         super().save(*args, **kwargs)
 
 
@@ -57,10 +55,23 @@ class Post(models.Model):
         User, on_delete=models.CASCADE, related_name="community_posts"
     )
     title = models.CharField(max_length=300, blank=True, null=True)
-    content = models.TextField(max_length=10000)
-    image = models.ImageField(upload_to=post_image_upload_path, blank=True, null=True)
 
-    # NEW — MULTI TAGS
+    # TEMPORARY (to be removed later)
+    content = models.TextField(max_length=10000)
+
+    # ✅ NEW FIELDS FOR SUBSCRIPTION LOGIC
+    preview_content = models.TextField(
+        max_length=3000,
+        blank=True,
+        help_text="Visible to all users (non-premium)",
+    )
+    full_content = models.TextField(
+        max_length=10000,
+        blank=True,
+        help_text="Visible only to premium users",
+    )
+
+    image = models.ImageField(upload_to=post_image_upload_path, blank=True, null=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name="posts")
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -83,7 +94,7 @@ class Post(models.Model):
     def top_level_comments(self):
         return self.comments.filter(parent__isnull=True)
 
-    # IMAGE HANDLING
+    # IMAGE HANDLING (UNCHANGED)
     def delete(self, *args, **kwargs):
         if self.image and self.image.name:
             if default_storage.exists(self.image.path):
@@ -94,19 +105,15 @@ class Post(models.Model):
         old_image_path = None
         new_image_uploaded = False
 
-        # Detect update
         if self.pk:
             old_post = Post.objects.filter(pk=self.pk).first()
-            if old_post:
-                if old_post.image and old_post.image != self.image:
-                    old_image_path = old_post.image.path
-                    new_image_uploaded = True
+            if old_post and old_post.image != self.image:
+                old_image_path = old_post.image.path if old_post.image else None
+                new_image_uploaded = True
         else:
-            # Create
             if self.image:
                 new_image_uploaded = True
 
-        # No new image → normal save
         if not new_image_uploaded:
             return super().save(*args, **kwargs)
 
@@ -115,9 +122,6 @@ class Post(models.Model):
                 default_storage.delete(old_image_path)
             return super().save(*args, **kwargs)
 
-        # ------------------------------------------------------
-        # COMPRESS BEFORE DJANGO SAVES — PREVENT ORIGINAL WRITES
-        # ------------------------------------------------------
         img = Image.open(self.image)
         img = ImageOps.exif_transpose(img)
 
@@ -136,13 +140,10 @@ class Post(models.Model):
             quality -= 5
 
         new_name = f"{secrets.token_hex(30)}.jpg"
-
         self.image = ContentFile(buffer.getvalue(), name=new_name)
 
-        # Save compressed image only
         super().save(*args, **kwargs)
 
-        # Delete old image after updating
         if old_image_path and default_storage.exists(old_image_path):
             default_storage.delete(old_image_path)
 
@@ -155,14 +156,29 @@ class Comment(models.Model):
     author = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="community_comments"
     )
+
+    # TEMPORARY
     content = models.TextField(max_length=5000)
+
+    # ✅ NEW FIELDS
+    preview_content = models.TextField(
+        max_length=500,
+        blank=True,
+        help_text="Visible to all users",
+    )
+    full_content = models.TextField(
+        max_length=5000,
+        blank=True,
+        help_text="Visible only to premium users",
+    )
+
     parent = models.ForeignKey(
         "self",
         null=True,
         blank=True,
         on_delete=models.CASCADE,
         related_name="replies",
-        help_text="Null = top-level comment, Not null = reply to a top-level comment",
+        help_text="Null = top-level comment, Not null = reply",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -197,7 +213,7 @@ class Comment(models.Model):
 
 
 # ---------------------------
-# LIKE MODEL
+# LIKE MODEL (UNCHANGED)
 # ---------------------------
 class Like(models.Model):
     user = models.ForeignKey(
