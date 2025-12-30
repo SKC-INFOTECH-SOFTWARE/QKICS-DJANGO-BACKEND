@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "bookings",
     "payments",
     "subscriptions",
+    "documents",
 ]
 ROOT_URLCONF = "rplatform.urls"
 ASGI_APPLICATION = "rplatform.asgi.application"
