@@ -4,6 +4,7 @@ from .views import (
     DocumentListView,
     DocumentDetailView,
     DocumentDownloadView,
+    MyDocumentDownloadsView,
 )
 
 urlpatterns = [
@@ -28,5 +29,14 @@ urlpatterns = [
         "<uuid:uuid>/download/",
         DocumentDownloadView.as_view(),
         name="document-download",
+    ),
+    
+    # -----------------------------
+    # MY DOWNLOADS
+    # -----------------------------
+    path(
+        "my-downloads/",
+        MyDocumentDownloadsView.as_view(),
+        name="my-document-downloads",
     ),
 ]

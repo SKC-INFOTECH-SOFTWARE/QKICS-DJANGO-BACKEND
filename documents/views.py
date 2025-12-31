@@ -10,6 +10,7 @@ from .models import Document, DocumentDownload
 from .serializers import (
     DocumentListSerializer,
     DocumentDetailSerializer,
+    DocumentDownloadSerializer,
 )
 from .services.access import can_user_download_document
 
@@ -21,6 +22,7 @@ class DocumentListView(generics.ListAPIView):
     """
     Lists all active documents.
     """
+
     permission_classes = [AllowAny]
     serializer_class = DocumentListSerializer
 
@@ -35,6 +37,7 @@ class DocumentDetailView(generics.RetrieveAPIView):
     """
     Returns document metadata.
     """
+
     permission_classes = [AllowAny]
     serializer_class = DocumentDetailSerializer
     lookup_field = "uuid"
@@ -85,4 +88,23 @@ class DocumentDownloadView(APIView):
             document.file.open("rb"),
             as_attachment=True,
             filename=document.file.name,
+        )
+
+
+# =====================================================
+# MY DOWNLOADS VIEW
+# =====================================================
+class MyDocumentDownloadsView(generics.ListAPIView):
+    """
+    Returns the authenticated user's document download history.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = DocumentDownloadSerializer
+
+    def get_queryset(self):
+        return (
+            DocumentDownload.objects.select_related("document")
+            .filter(user=self.request.user)
+            .order_by("-downloaded_at")
         )
