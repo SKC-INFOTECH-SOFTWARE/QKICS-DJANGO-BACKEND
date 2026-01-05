@@ -38,9 +38,14 @@ class InvestorReadSerializer(serializers.ModelSerializer):
         return {"id": obj.user.id,"uuid":obj.user.uuid,  "username": obj.user.username,"first_name": obj.user.first_name, "last_name": obj.user.last_name, "user_type": obj.user.user_type, "profile_picture": obj.user.profile_picture.url if obj.user.profile_picture else None}
 
     def get_profile_picture(self, obj):
-        if obj.user.profile_picture:
-            return self.context["request"].build_absolute_uri(obj.user.profile_picture.url)
-        return None
+        if not obj.user.profile_picture:
+            return None
+
+        request = self.context.get("request")
+        url = obj.user.profile_picture.url
+
+        return request.build_absolute_uri(url) if request else url
+
 
 
 class InvestorWriteSerializer(serializers.ModelSerializer):
