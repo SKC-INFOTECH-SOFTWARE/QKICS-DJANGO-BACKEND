@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 from .models import Post, Comment, Tag
-from subscriptions.services.access import is_user_premium  # ✅ NEW (subscription)
+from subscriptions.services.access import is_user_premium  #  (subscription)
 
 User = get_user_model()
 
@@ -56,7 +56,7 @@ class ReplySerializer(serializers.ModelSerializer):
     total_likes = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
 
-    # ✅ NEW (subscription-based rendering)
+    #  (subscription-based rendering)
     content = serializers.SerializerMethodField()
 
     class Meta:
@@ -70,11 +70,14 @@ class ReplySerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    # ✅ NEW (subscription logic only)
+    #  (subscription logic only)
     def get_content(self, obj):
         request = self.context.get("request")
         user = request.user if request else None
-
+        
+        if user and user.is_authenticated and obj.author_id == user.id:
+            return obj.full_content or obj.content
+    
         if user and user.is_authenticated and is_user_premium(user):
             return obj.full_content or obj.content
 
@@ -98,7 +101,7 @@ class CommentSerializer(serializers.ModelSerializer):
     is_liked = serializers.SerializerMethodField()
     total_replies = serializers.IntegerField(source="replies.count", read_only=True)
 
-    # ✅ NEW (subscription-based rendering)
+    #  (subscription-based rendering)
     content = serializers.SerializerMethodField()
 
     class Meta:
@@ -113,11 +116,14 @@ class CommentSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    # ✅ NEW (subscription logic only)
+    #  (subscription logic only)
     def get_content(self, obj):
         request = self.context.get("request")
         user = request.user if request else None
-
+        
+        if user and user.is_authenticated and obj.author_id == user.id:
+            return obj.full_content or obj.content
+        
         if user and user.is_authenticated and is_user_premium(user):
             return obj.full_content or obj.content
 
@@ -144,7 +150,7 @@ class PostSerializer(serializers.ModelSerializer):
     )
     is_liked = serializers.SerializerMethodField()
 
-    # ✅ NEW (subscription-based rendering)
+    #  (subscription-based rendering)
     content = serializers.SerializerMethodField()
 
     class Meta:
@@ -163,11 +169,14 @@ class PostSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
-    # ✅ NEW (subscription logic only)
+    #  (subscription logic only)
     def get_content(self, obj):
         request = self.context.get("request")
         user = request.user if request else None
-
+        
+        if user and user.is_authenticated and obj.author_id == user.id:
+            return obj.full_content or obj.content
+        
         if user and user.is_authenticated and is_user_premium(user):
             return obj.full_content or obj.content
 
@@ -193,7 +202,7 @@ class PostSearchSerializer(serializers.ModelSerializer):
         source="total_comments_count", read_only=True
     )
 
-    # ✅ NEW
+    # 
     content = serializers.SerializerMethodField()
 
     class Meta:
@@ -210,14 +219,17 @@ class PostSearchSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    # ✅ NEW
+    # 
     def get_content(self, obj):
         request = self.context.get("request")
         user = request.user if request else None
-
+        
+        if user and user.is_authenticated and obj.author_id == user.id:
+            return obj.full_content or obj.content
+        
         if user and user.is_authenticated and is_user_premium(user):
             return obj.full_content or obj.content
-
+        
         return obj.preview_content or obj.content
 
 
@@ -232,8 +244,8 @@ class PostCreateSerializer(serializers.ModelSerializer):
         model = Post
         fields = [
             "title",
-            "preview_content",  # ✅ NEW
-            "full_content",  # ✅ NEW
+            "preview_content",  # 
+            "full_content",  # 
             "image",
             "tags",
         ]
@@ -255,8 +267,8 @@ class CommentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = [
-            "preview_content",  # ✅ NEW
-            "full_content",  # ✅ NEW
+            "preview_content",
+            "full_content",  # 
             "parent",
         ]
 

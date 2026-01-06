@@ -152,7 +152,7 @@ class PostListCreateView(ListAPIView):
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
-        post = serializer.save()
+        post = serializer.save(author=request.user)
 
         return Response(
             PostSerializer(post, context={"request": request}).data, status=201
@@ -258,7 +258,10 @@ class CommentListCreateView(ListAPIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
-        comment = serializer.save()
+        comment = serializer.save(
+            author=request.user,
+            post=post,
+        )
 
         return Response(
             CommentSerializer(comment, context={"request": request}).data,
@@ -341,8 +344,9 @@ class ReplyListCreateView(ListAPIView):
         reply = Comment.objects.create(
             post=parent.post,
             author=request.user,
-            content=serializer.validated_data["content"],
             parent=parent,
+            preview_content=serializer.validated_data["preview_content"],
+            full_content=serializer.validated_data["full_content"],
         )
 
         return Response(

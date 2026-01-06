@@ -61,7 +61,7 @@ class Post(models.Model):
 
     # ✅ NEW FIELDS FOR SUBSCRIPTION LOGIC
     preview_content = models.TextField(
-        max_length=3000,
+        max_length=500,
         blank=True,
         help_text="Visible to all users (non-premium)",
     )
@@ -162,7 +162,7 @@ class Comment(models.Model):
 
     # ✅ NEW FIELDS
     preview_content = models.TextField(
-        max_length=500,
+        max_length=300,
         blank=True,
         help_text="Visible to all users",
     )
