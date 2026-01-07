@@ -52,3 +52,25 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+
+# ============================================================
+# ADMIN SUBSCRIPTION PLAN SERIALIZER
+# ============================================================
+class SubscriptionPlanAdminSerializer(serializers.ModelSerializer):
+    active_user_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = SubscriptionPlan
+        fields = [
+            "uuid",
+            "name",
+            "price",
+            "duration_days",
+            "premium_doc_limit_per_month",
+            "free_consultation_count",
+            "free_chat_per_month",
+            "is_active",
+            "active_user_count",
+        ]
+        read_only_fields = ["uuid", "active_user_count"]
