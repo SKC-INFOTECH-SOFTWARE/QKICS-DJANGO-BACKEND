@@ -1,23 +1,16 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .serializers import FakeBookingPaymentSerializer, PaymentSerializer
-from .services.fake import FakePaymentService
-from .models import Payment
-
-from .services.fake import FakePaymentService
-from .models import Payment
-
-# ✅ ADD THIS IMPORT
-from bookings.services.confirm_booking import confirm_booking_after_payment
 from bookings.models import Booking
+from payments.models import Payment
+from payments.serializers import FakeBookingPaymentSerializer, PaymentSerializer
+from payments.services.fake import FakePaymentService
+from bookings.services.confirm_booking import confirm_booking_after_payment
+
 
 class FakeBookingPaymentView(APIView):
-    """
-    Fake payment endpoint for booking payments.
-    """
-
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -26,12 +19,21 @@ class FakeBookingPaymentView(APIView):
 
         booking_id = serializer.validated_data["booking_id"]
 
-        booking = Booking.objects.get(uuid=booking_id, user=request.user)
+        booking = get_object_or_404(
+            Booking,
+            uuid=booking_id,
+            user=request.user,
+        )
+
+        # FAKE auto-approve
+        if booking.status == Booking.STATUS_PENDING:
+            booking.status = Booking.STATUS_AWAITING_PAYMENT
+            booking.save(update_fields=["status", "updated_at"])
 
         if booking.status != Booking.STATUS_AWAITING_PAYMENT:
             return Response(
-                {"detail": "Booking is not awaiting payment"},
-                status=400,
+                {"detail": f"Cannot pay for booking in {booking.status} state"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         payment_service = FakePaymentService()
@@ -47,7 +49,14 @@ class FakeBookingPaymentView(APIView):
 
         confirm_booking_after_payment(payment=payment)
 
+        booking.refresh_from_db()
+
         return Response(
-            PaymentSerializer(payment).data,
+            {
+                "payment": PaymentSerializer(payment).data,
+                "booking_id": str(booking.uuid),
+                "chat_room_id": booking.chat_room_id,
+                "status": "BOOKING_CONFIRMED_AND_CHAT_CREATED",
+            },
             status=status.HTTP_201_CREATED,
         )
