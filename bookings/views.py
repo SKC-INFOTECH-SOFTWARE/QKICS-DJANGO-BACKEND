@@ -99,12 +99,6 @@ class ExpertSlotDeleteView(generics.DestroyAPIView):
 
 
 class BookingListCreateView(generics.ListCreateAPIView):
-    """
-    - User: sees own bookings
-    - Expert: sees bookings where they are expert (as_expert=true)
-    - POST: create booking
-    """
-
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
 
@@ -123,6 +117,29 @@ class BookingListCreateView(generics.ListCreateAPIView):
             return Booking.objects.filter(expert=user)
 
         return Booking.objects.filter(user=user)
+
+    def create(self, request, *args, **kwargs):
+        """
+        CREATE booking and RETURN FULL BOOKING DETAILS
+        """
+        serializer = BookingCreateSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        booking = serializer.save()
+
+        # 🔥 THIS IS THE KEY LINE
+        response_serializer = BookingSerializer(
+            booking,
+            context={"request": request},
+        )
+
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class BookingDetailView(generics.RetrieveAPIView):
