@@ -11,6 +11,7 @@ from .models import Payment
 
 # ✅ ADD THIS IMPORT
 from bookings.services.confirm_booking import confirm_booking_after_payment
+from bookings.models import Booking
 
 class FakeBookingPaymentView(APIView):
     """
@@ -25,20 +26,25 @@ class FakeBookingPaymentView(APIView):
 
         booking_id = serializer.validated_data["booking_id"]
 
+        booking = Booking.objects.get(uuid=booking_id, user=request.user)
+
+        if booking.status != Booking.STATUS_AWAITING_PAYMENT:
+            return Response(
+                {"detail": "Booking is not awaiting payment"},
+                status=400,
+            )
+
         payment_service = FakePaymentService()
 
-        # Step 1: create payment (INITIATED)
         payment = payment_service.create_payment(
             user=request.user,
             purpose=Payment.PURPOSE_BOOKING,
-            reference_id=booking_id,
-            amount=0,  # real amount will be enforced later from booking
+            reference_id=booking.uuid,
+            amount=booking.price,
         )
 
-        # Step 2: confirm payment immediately (FAKE)
         payment = payment_service.confirm_payment(payment=payment)
-        
-        # STEP 3: CONFIRM BOOKING AFTER PAYMENT
+
         confirm_booking_after_payment(payment=payment)
 
         return Response(

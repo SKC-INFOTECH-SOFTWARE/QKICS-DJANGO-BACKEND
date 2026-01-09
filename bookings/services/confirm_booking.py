@@ -1,7 +1,10 @@
+# bookings/services/confirm_booking.py
+
 from django.db import transaction
 from django.utils import timezone
-from bookings.models import Booking, ExpertSlot
+from bookings.models import Booking
 from payments.models import Payment
+import uuid
 
 
 def confirm_booking_after_payment(*, payment: Payment):
@@ -12,17 +15,35 @@ def confirm_booking_after_payment(*, payment: Payment):
     if payment.status != Payment.STATUS_SUCCESS:
         return
 
-    with transaction.atomic():
-        booking = Booking.objects.select_for_update().get(uuid=payment.reference_id)
+    if payment.purpose != Payment.PURPOSE_BOOKING:
+        return
 
-        if booking.status != Booking.STATUS_PAYMENT_IN_PROGRESS:
+    with transaction.atomic():
+        booking = Booking.objects.select_for_update().get(
+            uuid=payment.reference_id
+        )
+
+        # ✅ Must be awaiting payment
+        if booking.status != Booking.STATUS_AWAITING_PAYMENT:
             return
 
-        slot = booking.slot
+        # ✅ Step 1: mark as PAID
+        booking.status = Booking.STATUS_PAID
+        booking.paid_at = timezone.now()
 
+        # ✅ Step 2: confirm booking
         booking.status = Booking.STATUS_CONFIRMED
         booking.confirmed_at = timezone.now()
-        booking.save(update_fields=["status", "confirmed_at"])
 
-        slot.status = ExpertSlot.STATUS_BOOKED
-        slot.save(update_fields=["status"])
+        # ✅ Step 3: create chat room id
+        booking.chat_room_id = uuid.uuid4()
+
+        booking.save(
+            update_fields=[
+                "status",
+                "paid_at",
+                "confirmed_at",
+                "chat_room_id",
+                "updated_at",
+            ]
+        )

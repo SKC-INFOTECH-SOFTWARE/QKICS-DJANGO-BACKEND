@@ -26,7 +26,9 @@ from entrepreneurs.serializers import EntrepreneurProfileReadSerializer
 from investors.serializers import InvestorReadSerializer
 from users.serializers import PublicUserProfileSerializer
 from django.shortcuts import get_object_or_404
-#------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------
+
 
 # ────────────────────── REGISTER API ──────────────────────
 class RegisterAPIView(APIView):
@@ -341,8 +343,6 @@ class AdminCreateUserAPIView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
-
-
 
 
 class UnifiedPublicProfileAPIView(APIView):
