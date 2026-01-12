@@ -14,6 +14,7 @@ from .views import (
     CookieTokenRefreshView,
     AdminCreateUserAPIView,
     UnifiedPublicProfileAPIView,
+    UserSearchAPIView,
 )
 
 urlpatterns = [
@@ -24,6 +25,9 @@ urlpatterns = [
     
     # Public Profile (Unified)
     path("profiles/<str:username>/", UnifiedPublicProfileAPIView.as_view(), name="public-profile",),
+    
+    # User Search
+    path("search/", UserSearchAPIView.as_view(), name="user-search"),
 
     # User Profile Management
     path("me/", GetMyProfileAPIView.as_view(), name="my-profile"),
