@@ -5,7 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from .permissions import IsAdmin
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-
+from rest_framework.generics import ListAPIView
+from django.db.models import Q
 from users.models import User
 from .serializers import (
     RegisterSerializer,
@@ -14,6 +15,7 @@ from .serializers import (
     PasswordChangeSerializer,
     LogoutSerializer,
 )
+from users.pagination import UserSearchCursorPagination
 from rest_framework_simplejwt.tokens import RefreshToken
 
 # Public Profile access includes ---------------------------------------
@@ -394,4 +396,36 @@ class UnifiedPublicProfileAPIView(APIView):
                 "profile": PublicUserProfileSerializer(user).data,
             },
             status=status.HTTP_200_OK,
+        )
+
+
+class UserSearchAPIView(ListAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = PublicUserProfileSerializer
+    pagination_class = UserSearchCursorPagination
+
+    def get_queryset(self):
+        query = self.request.query_params.get("q", "").strip()
+
+        if not query:
+            return User.objects.none()
+
+        return (
+            User.objects.filter(
+                Q(username__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(last_name__icontains=query),
+                is_active=True,
+                status="active",
+            )
+            .only(
+                "id",
+                "uuid",
+                "username",
+                "first_name",
+                "last_name",
+                "user_type",
+                "profile_picture",
+            )
+            .order_by("id")
         )
