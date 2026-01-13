@@ -74,10 +74,10 @@ class ReplySerializer(serializers.ModelSerializer):
     def get_content(self, obj):
         request = self.context.get("request")
         user = request.user if request else None
-        
+
         if user and user.is_authenticated and obj.author_id == user.id:
             return obj.full_content or obj.content
-    
+
         if user and user.is_authenticated and is_user_premium(user):
             return obj.full_content or obj.content
 
@@ -120,10 +120,10 @@ class CommentSerializer(serializers.ModelSerializer):
     def get_content(self, obj):
         request = self.context.get("request")
         user = request.user if request else None
-        
+
         if user and user.is_authenticated and obj.author_id == user.id:
             return obj.full_content or obj.content
-        
+
         if user and user.is_authenticated and is_user_premium(user):
             return obj.full_content or obj.content
 
@@ -173,10 +173,10 @@ class PostSerializer(serializers.ModelSerializer):
     def get_content(self, obj):
         request = self.context.get("request")
         user = request.user if request else None
-        
+
         if user and user.is_authenticated and obj.author_id == user.id:
             return obj.full_content or obj.content
-        
+
         if user and user.is_authenticated and is_user_premium(user):
             return obj.full_content or obj.content
 
@@ -219,22 +219,24 @@ class PostSearchSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    # 
+    #
     def get_content(self, obj):
         request = self.context.get("request")
         user = request.user if request else None
-        
+
         if user and user.is_authenticated and obj.author_id == user.id:
             return obj.full_content or obj.content
-        
+
         if user and user.is_authenticated and is_user_premium(user):
             return obj.full_content or obj.content
-        
+
         return obj.preview_content or obj.content
-    
+
     def get_is_liked(self, obj):
         user = self.context["request"].user
-        return user.is_authenticated and obj.comment_likes.filter(user=user).exists()
+        return user.is_authenticated and obj.post_likes.filter(user=user).exists()
+
+
 # =====================================================
 # CREATE / UPDATE SERIALIZERS
 # (ONLY field names changed, logic untouched)
@@ -246,8 +248,8 @@ class PostCreateSerializer(serializers.ModelSerializer):
         model = Post
         fields = [
             "title",
-            "preview_content",  # 
-            "full_content",  # 
+            "preview_content",  #
+            "full_content",  #
             "image",
             "tags",
         ]
@@ -270,7 +272,7 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         model = Comment
         fields = [
             "preview_content",
-            "full_content",  # 
+            "full_content",  #
             "parent",
         ]
 
