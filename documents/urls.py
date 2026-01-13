@@ -1,4 +1,5 @@
-from django.urls import path
+from django.urls import path, include
+from . import urls_admin as admin_urls
 
 from .views import (
     DocumentListView,
@@ -21,7 +22,6 @@ urlpatterns = [
         DocumentDetailView.as_view(),
         name="document-detail",
     ),
-
     # -----------------------------
     # DOCUMENT DOWNLOAD
     # -----------------------------
@@ -30,7 +30,6 @@ urlpatterns = [
         DocumentDownloadView.as_view(),
         name="document-download",
     ),
-    
     # -----------------------------
     # MY DOWNLOADS
     # -----------------------------
@@ -39,4 +38,5 @@ urlpatterns = [
         MyDocumentDownloadsView.as_view(),
         name="my-document-downloads",
     ),
+    path("", include(admin_urls)),
 ]
