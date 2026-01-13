@@ -201,8 +201,7 @@ class PostSearchSerializer(serializers.ModelSerializer):
     total_comments = serializers.IntegerField(
         source="total_comments_count", read_only=True
     )
-
-    # 
+    is_liked = serializers.SerializerMethodField()
     content = serializers.SerializerMethodField()
 
     class Meta:
@@ -214,6 +213,7 @@ class PostSearchSerializer(serializers.ModelSerializer):
             "content",
             "image",
             "tags",
+            "is_liked",
             "total_likes",
             "total_comments",
             "created_at",
@@ -231,8 +231,10 @@ class PostSearchSerializer(serializers.ModelSerializer):
             return obj.full_content or obj.content
         
         return obj.preview_content or obj.content
-
-
+    
+    def get_is_liked(self, obj):
+        user = self.context["request"].user
+        return user.is_authenticated and obj.comment_likes.filter(user=user).exists()
 # =====================================================
 # CREATE / UPDATE SERIALIZERS
 # (ONLY field names changed, logic untouched)
