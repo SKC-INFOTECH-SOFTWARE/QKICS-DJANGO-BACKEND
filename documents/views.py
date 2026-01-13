@@ -106,5 +106,4 @@ class MyDocumentDownloadsView(generics.ListAPIView):
         return (
             DocumentDownload.objects.select_related("document")
             .filter(user=self.request.user)
-            .order_by("-downloaded_at")
         )

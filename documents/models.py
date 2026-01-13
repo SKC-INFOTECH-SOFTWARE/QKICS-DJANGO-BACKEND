@@ -94,11 +94,11 @@ class DocumentDownload(models.Model):
     )
 
     downloaded_at = models.DateTimeField(auto_now_add=True)
-
+    created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
-        ordering = ["-downloaded_at"]
+        ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["user", "downloaded_at"]),
+            models.Index(fields=["user", "created_at"]),
             models.Index(fields=["document"]),
         ]
 
