@@ -9,33 +9,20 @@ User = get_user_model()
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.user = self.scope["user"]
-        if not self.user.is_authenticated:
-            await self.close()
+        print("🔥 CONSUMER CONNECT HIT")
+        print("USER IN SCOPE:", self.scope["user"])
+
+        if not self.scope["user"].is_authenticated:
+            print("❌ UNAUTHENTICATED — CLOSING")
+            await self.close(code=4001)
             return
 
         self.room_id = self.scope["url_route"]["kwargs"]["room_id"]
         self.room_group_name = f"chat_{self.room_id}"
 
-        # Join room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
-
-        # Mark user as online
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                "type": "user_online",
-                "user_id": self.user.id,
-            }
-        )
-
-        # Send unread count
-        unread = await self.get_unread_count()
-        await self.send(text_data=json.dumps({
-            "type": "unread_count",
-            "count": unread
-        }))
+        print("✅ WS ACCEPTED")
 
     async def disconnect(self, close_code):
         if hasattr(self, "room_group_name"):
