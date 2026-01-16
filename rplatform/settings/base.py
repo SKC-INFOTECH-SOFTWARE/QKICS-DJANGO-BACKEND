@@ -25,7 +25,7 @@ INSTALLED_APPS = [
     "users",
     "experts",
     "entrepreneurs",
-    'investors',
+    "investors",
     "community",
     "chat",
     "bookings",
@@ -54,7 +54,6 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
-
     "DEFAULT_PAGINATION_CLASS": "community.pagination.DefaultCursorPagination",
     "PAGE_SIZE": 10,
 }
@@ -129,9 +128,9 @@ CHANNEL_LAYERS = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {
-            'min_length': 4,
-        }
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {
+            "min_length": 4,
+        },
     },
 ]
