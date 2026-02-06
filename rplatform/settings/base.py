@@ -6,7 +6,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*").split(",")
+ALLOWED_HOSTS = config(
+    "ALLOWED_HOSTS",
+    default="localhost,127.0.0.1"
+).split(",")
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -99,7 +103,10 @@ TEMPLATES = [
 ]
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = (
+    [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
+)
+
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -120,10 +127,14 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("localhost", 6379)],
+            "hosts": [
+                (config("REDIS_HOST", default="localhost"),
+                 int(config("REDIS_PORT", default=6379)))
+            ],
         },
     },
 }
+
 
 
 AUTH_PASSWORD_VALIDATORS = [
