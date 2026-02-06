@@ -52,6 +52,7 @@ dist/
 build/
 test_doc.json
 
+*.dev
 
 .settings/
 settings.production.py
