@@ -1,22 +1,41 @@
+version: '3.8'
+
 services:
   django:
     build:
       context: .
       dockerfile: Dockerfile.prod
+    container_name: django_app
     env_file:
       - .env.prod
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./staticfiles:/app/staticfiles
+      - ./media:/app/media
     depends_on:
       - redis
-    restart: always
+    restart: unless-stopped
     networks:
-      - qkics_net
+      - app_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   redis:
-    image: redis:7
-    restart: always
+    image: redis:7-alpine
+    container_name: redis_app
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
-      - qkics_net
+      - app_network
+    command: redis-server --appendonly yes
 
 networks:
-  qkics_net:
+  app_network:
     driver: bridge
+
+volumes:
+  redis_data:
