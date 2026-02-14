@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: django_app
+    container_name: Qkics-Backend
     env_file:
       - .env.prod
     ports:
