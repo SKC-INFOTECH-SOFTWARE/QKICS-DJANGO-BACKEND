@@ -13,9 +13,8 @@ __pycache__/
 *.sqlite3
 db.sqlite3
 *.log
-# .env
-.env.dev
-.env.prod
+.env
+.env.*
 .local
 
 # Virtual environments
