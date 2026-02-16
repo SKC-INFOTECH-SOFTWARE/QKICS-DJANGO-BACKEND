@@ -104,6 +104,7 @@ jobs:
 
           echo "Waiting for startup..."
           sleep 12
+          
 
           echo "Running migrations..."
           sudo docker-compose -f docker-compose.prod.yml exec -T django python manage.py migrate --noinput
