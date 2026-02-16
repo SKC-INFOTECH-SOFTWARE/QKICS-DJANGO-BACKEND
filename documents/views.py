@@ -16,7 +16,7 @@ from .services.access import can_user_download_document
 
 
 # =====================================================
-# DOCUMENT LIST VIEW
+# DOCUMENT LIST
 # =====================================================
 class DocumentListView(generics.ListAPIView):
     """
