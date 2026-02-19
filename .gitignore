@@ -51,10 +51,8 @@ node_modules/
 dist/
 build/
 test_doc.json
-
 *.dev
 *.dev.yml
-
 .settings/
 settings.production.py
 "@
