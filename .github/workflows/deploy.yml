@@ -119,7 +119,7 @@ jobs:
           # give it enough time to complete all three
           # ==============================
           echo "Waiting for startup..."
-          sleep 30
+          sleep 60
 
           # ==============================
           # PERMISSIONS & NGINX
@@ -131,10 +131,26 @@ jobs:
           sudo systemctl reload nginx
 
           # ==============================
-          # HEALTH CHECK
+          # HEALTH CHECK WITH RETRIES
+          # Retries every 10s for up to 100s
           # ==============================
           echo "Running health check..."
-          curl -f http://localhost:9000/api/v1/auth/check-username/ || exit 1
+          for i in $(seq 1 10); do
+            echo "Health check attempt $i/10..."
+            if curl -sf http://localhost:9000/api/v1/auth/check-username/; then
+              echo ""
+              echo "✅ Health check passed!"
+              break
+            fi
+            if [ $i -eq 10 ]; then
+              echo "❌ Health check failed after 10 attempts"
+              echo "--- Last 50 lines of Django logs ---"
+              sudo docker-compose -f docker-compose.prod.yml logs django --tail=50
+              exit 1
+            fi
+            echo "Not ready yet, retrying in 10s..."
+            sleep 10
+          done
 
           echo "$RELEASE_TAG" > .current-release
 
