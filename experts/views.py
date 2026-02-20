@@ -1,9 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 
 from .models import (
     ExpertProfile,
@@ -28,6 +27,8 @@ from .serializers import (
 )
 from django.contrib.auth import get_user_model
 from users.permissions import IsAdmin
+from rest_framework.generics import ListAPIView
+from .pagination import ExpertCursorPagination
 
 User = get_user_model()
 
@@ -51,13 +52,27 @@ def _is_expert_owner(request, expert_obj):
 # -----------------------
 # Expert List (public): only approved/verified profiles
 # -----------------------
-class ExpertListView(APIView):
+class ExpertListView(ListAPIView):
+    serializer_class = ExpertProfileReadSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    pagination_class = ExpertCursorPagination
 
-    def get(self, request):
-        qs = ExpertProfile.objects.filter(verified_by_admin=True, application_status="approved").select_related("user")
-        serializer = ExpertProfileReadSerializer(qs, many=True, context={"request": request})
-        return Response(serializer.data)
+    def get_queryset(self):
+        return (
+            ExpertProfile.objects
+            .filter(
+                verified_by_admin=True,
+                application_status="approved"
+            )
+            .select_related("user")
+            .prefetch_related(
+                "experiences",
+                "educations",
+                "certifications",
+                "honors_awards"
+            )
+            .order_by("-created_at")
+        )
 
 
 # -----------------------
@@ -68,7 +83,11 @@ class ExpertDetailView(APIView):
 
     def get(self, request, username):
         user = get_object_or_404(User, username=username)
-        profile = get_object_or_404(ExpertProfile.objects.select_related("user"), user=user, verified_by_admin=True)
+        profile = get_object_or_404(
+            ExpertProfile.objects.select_related("user"),
+            user=user,
+            verified_by_admin=True,
+        )
         serializer = ExpertProfileReadSerializer(profile, context={"request": request})
         return Response(serializer.data)
 
@@ -82,62 +101,91 @@ class ExpertProfileSelfView(APIView):
     GET: retrieve own profile
     PUT/PATCH: update own profile
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
-            return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
+            )
         serializer = ExpertProfileReadSerializer(profile, context={"request": request})
         return Response(serializer.data)
 
     def post(self, request):
         if request.user.user_type in ["entrepreneur", "investor"]:
-            return Response({
-                "error": "You are already a verified entrepreneur or investor. Cannot create expert profile."
-            }, status=400)
+            return Response(
+                {
+                    "error": "You are already a verified entrepreneur or investor. Cannot create expert profile."
+                },
+                status=400,
+            )
 
         if hasattr(request.user, "expert_profile"):
             return Response({"error": "Expert profile already exists"}, status=400)
-        
+
         # create profile if not exists
         if hasattr(request.user, "expert_profile"):
-            return Response({"detail": "Expert profile already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Expert profile already exists."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        serializer = ExpertProfileWriteSerializer(data=request.data, context={"request": request})
+        serializer = ExpertProfileWriteSerializer(
+            data=request.data, context={"request": request}
+        )
         if serializer.is_valid():
             profile = serializer.save(user=request.user)
             # ensure OneToOne is honored; serializer.save should accept user kwarg
-            read_ser = ExpertProfileReadSerializer(profile, context={"request": request})
+            read_ser = ExpertProfileReadSerializer(
+                profile, context={"request": request}
+            )
             return Response(read_ser.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
-            return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
+            )
 
         if not _is_profile_owner(request, profile):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
 
-        serializer = ExpertProfileWriteSerializer(profile, data=request.data, partial=False, context={"request": request})
+        serializer = ExpertProfileWriteSerializer(
+            profile, data=request.data, partial=False, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(ExpertProfileReadSerializer(profile, context={"request": request}).data)
+            return Response(
+                ExpertProfileReadSerializer(profile, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
-            return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
+            )
 
         if not _is_profile_owner(request, profile):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
 
-        serializer = ExpertProfileWriteSerializer(profile, data=request.data, partial=True, context={"request": request})
+        serializer = ExpertProfileWriteSerializer(
+            profile, data=request.data, partial=True, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(ExpertProfileReadSerializer(profile, context={"request": request}).data)
+            return Response(
+                ExpertProfileReadSerializer(profile, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -150,15 +198,25 @@ class ExpertApplicationSubmitView(APIView):
     def post(self, request):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
-            return Response({"detail": "Create profile first before submitting."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Create profile first before submitting."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if profile.application_status == "pending":
-            return Response({"detail": "Application already pending."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Application already pending."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        serializer = ExpertApplicationSubmitSerializer(data=request.data, context={"request": request})
+        serializer = ExpertApplicationSubmitSerializer(
+            data=request.data, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save(expert_profile=profile)
-            return Response({"detail": "Application submitted."}, status=status.HTTP_200_OK)
+            return Response(
+                {"detail": "Application submitted."}, status=status.HTTP_200_OK
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -169,9 +227,13 @@ class AdminVerifyExpertView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def patch(self, request, profile_id):
-        profile = get_object_or_404(ExpertProfile.objects.select_related("user"), id=profile_id)
-        serializer = ExpertAdminVerifySerializer(data=request.data, context={"request": request})
-        
+        profile = get_object_or_404(
+            ExpertProfile.objects.select_related("user"), id=profile_id
+        )
+        serializer = ExpertAdminVerifySerializer(
+            data=request.data, context={"request": request}
+        )
+
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
@@ -180,9 +242,12 @@ class AdminVerifyExpertView(APIView):
         if action == "approve":
             # ←←← BLOCK IF USER ALREADY HAS ANOTHER VERIFIED ROLE ←←←
             if profile.user.user_type in ["entrepreneur", "investor"]:
-                return Response({
-                    "error": "User already has a verified role (entrepreneur/investor). Cannot approve as expert."
-                }, status=400)
+                return Response(
+                    {
+                        "error": "User already has a verified role (entrepreneur/investor). Cannot approve as expert."
+                    },
+                    status=400,
+                )
 
             # Auto-reject pending entrepreneur profile
             if hasattr(profile.user, "entrepreneur_profile"):
@@ -197,7 +262,9 @@ class AdminVerifyExpertView(APIView):
             profile.user.save()
             profile.save()
 
-            return Response({"message": "Expert approved. Other applications auto-rejected."})
+            return Response(
+                {"message": "Expert approved. Other applications auto-rejected."}
+            )
 
         elif action == "reject":
             profile.application_status = "rejected"
@@ -217,12 +284,20 @@ class ExperienceCreateView(APIView):
         # user must have expert_profile
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
-            return Response({"detail": "Create expert profile first."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Create expert profile first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        serializer = ExperienceWriteSerializer(data=request.data, context={"request": request})
+        serializer = ExperienceWriteSerializer(
+            data=request.data, context={"request": request}
+        )
         if serializer.is_valid():
             exp = serializer.save(expert=profile)
-            return Response(ExperienceReadSerializer(exp, context={"request": request}).data, status=status.HTTP_201_CREATED)
+            return Response(
+                ExperienceReadSerializer(exp, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -234,34 +309,50 @@ class ExperienceDetailView(APIView):
 
     def get(self, request, pk):
         exp = self.get_object(pk)
-        return Response(ExperienceReadSerializer(exp, context={"request": request}).data)
+        return Response(
+            ExperienceReadSerializer(exp, context={"request": request}).data
+        )
 
     def put(self, request, pk):
         exp = self.get_object(pk)
         if not _is_expert_owner(request, exp):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
 
-        serializer = ExperienceWriteSerializer(exp, data=request.data, partial=False, context={"request": request})
+        serializer = ExperienceWriteSerializer(
+            exp, data=request.data, partial=False, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(ExperienceReadSerializer(exp, context={"request": request}).data)
+            return Response(
+                ExperienceReadSerializer(exp, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
         exp = self.get_object(pk)
         if not _is_expert_owner(request, exp):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
 
-        serializer = ExperienceWriteSerializer(exp, data=request.data, partial=True, context={"request": request})
+        serializer = ExperienceWriteSerializer(
+            exp, data=request.data, partial=True, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(ExperienceReadSerializer(exp, context={"request": request}).data)
+            return Response(
+                ExperienceReadSerializer(exp, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         exp = self.get_object(pk)
         if not _is_expert_owner(request, exp):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
         exp.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -275,12 +366,20 @@ class EducationCreateView(APIView):
     def post(self, request):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
-            return Response({"detail": "Create expert profile first."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Create expert profile first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        serializer = EducationWriteSerializer(data=request.data, context={"request": request})
+        serializer = EducationWriteSerializer(
+            data=request.data, context={"request": request}
+        )
         if serializer.is_valid():
             edu = serializer.save(expert=profile)
-            return Response(EducationReadSerializer(edu, context={"request": request}).data, status=status.HTTP_201_CREATED)
+            return Response(
+                EducationReadSerializer(edu, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -297,27 +396,41 @@ class EducationDetailView(APIView):
     def put(self, request, pk):
         edu = self.get_object(pk)
         if not _is_expert_owner(request, edu):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        serializer = EducationWriteSerializer(edu, data=request.data, partial=False, context={"request": request})
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = EducationWriteSerializer(
+            edu, data=request.data, partial=False, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(EducationReadSerializer(edu, context={"request": request}).data)
+            return Response(
+                EducationReadSerializer(edu, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
         edu = self.get_object(pk)
         if not _is_expert_owner(request, edu):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        serializer = EducationWriteSerializer(edu, data=request.data, partial=True, context={"request": request})
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = EducationWriteSerializer(
+            edu, data=request.data, partial=True, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(EducationReadSerializer(edu, context={"request": request}).data)
+            return Response(
+                EducationReadSerializer(edu, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         edu = self.get_object(pk)
         if not _is_expert_owner(request, edu):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
         edu.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -331,12 +444,20 @@ class CertificationCreateView(APIView):
     def post(self, request):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
-            return Response({"detail": "Create expert profile first."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Create expert profile first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        serializer = CertificationWriteSerializer(data=request.data, context={"request": request})
+        serializer = CertificationWriteSerializer(
+            data=request.data, context={"request": request}
+        )
         if serializer.is_valid():
             cert = serializer.save(expert=profile)
-            return Response(CertificationReadSerializer(cert, context={"request": request}).data, status=status.HTTP_201_CREATED)
+            return Response(
+                CertificationReadSerializer(cert, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -348,32 +469,48 @@ class CertificationDetailView(APIView):
 
     def get(self, request, pk):
         cert = self.get_object(pk)
-        return Response(CertificationReadSerializer(cert, context={"request": request}).data)
+        return Response(
+            CertificationReadSerializer(cert, context={"request": request}).data
+        )
 
     def put(self, request, pk):
         cert = self.get_object(pk)
         if not _is_expert_owner(request, cert):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        serializer = CertificationWriteSerializer(cert, data=request.data, partial=False, context={"request": request})
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = CertificationWriteSerializer(
+            cert, data=request.data, partial=False, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(CertificationReadSerializer(cert, context={"request": request}).data)
+            return Response(
+                CertificationReadSerializer(cert, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
         cert = self.get_object(pk)
         if not _is_expert_owner(request, cert):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        serializer = CertificationWriteSerializer(cert, data=request.data, partial=True, context={"request": request})
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = CertificationWriteSerializer(
+            cert, data=request.data, partial=True, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(CertificationReadSerializer(cert, context={"request": request}).data)
+            return Response(
+                CertificationReadSerializer(cert, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         cert = self.get_object(pk)
         if not _is_expert_owner(request, cert):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
         cert.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -387,12 +524,20 @@ class HonorAwardCreateView(APIView):
     def post(self, request):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
-            return Response({"detail": "Create expert profile first."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Create expert profile first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        serializer = HonorAwardWriteSerializer(data=request.data, context={"request": request})
+        serializer = HonorAwardWriteSerializer(
+            data=request.data, context={"request": request}
+        )
         if serializer.is_valid():
             award = serializer.save(expert=profile)
-            return Response(HonorAwardReadSerializer(award, context={"request": request}).data, status=status.HTTP_201_CREATED)
+            return Response(
+                HonorAwardReadSerializer(award, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -404,31 +549,47 @@ class HonorAwardDetailView(APIView):
 
     def get(self, request, pk):
         award = self.get_object(pk)
-        return Response(HonorAwardReadSerializer(award, context={"request": request}).data)
+        return Response(
+            HonorAwardReadSerializer(award, context={"request": request}).data
+        )
 
     def put(self, request, pk):
         award = self.get_object(pk)
         if not _is_expert_owner(request, award):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        serializer = HonorAwardWriteSerializer(award, data=request.data, partial=False, context={"request": request})
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = HonorAwardWriteSerializer(
+            award, data=request.data, partial=False, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(HonorAwardReadSerializer(award, context={"request": request}).data)
+            return Response(
+                HonorAwardReadSerializer(award, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
         award = self.get_object(pk)
         if not _is_expert_owner(request, award):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
-        serializer = HonorAwardWriteSerializer(award, data=request.data, partial=True, context={"request": request})
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
+        serializer = HonorAwardWriteSerializer(
+            award, data=request.data, partial=True, context={"request": request}
+        )
         if serializer.is_valid():
             serializer.save()
-            return Response(HonorAwardReadSerializer(award, context={"request": request}).data)
+            return Response(
+                HonorAwardReadSerializer(award, context={"request": request}).data
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         award = self.get_object(pk)
         if not _is_expert_owner(request, award):
-            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+            )
         award.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
