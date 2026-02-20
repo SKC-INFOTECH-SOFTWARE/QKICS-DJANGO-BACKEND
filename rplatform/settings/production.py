@@ -48,14 +48,6 @@ STATICFILES_STORAGE = (
     "whitenoise.storage.CompressedManifestStaticFilesStorage"
 )
 
-# ==================================================
-# DATABASE (OPTIONAL SSL – ENABLE FOR CLOUD DB)
-# ==================================================
-DATABASES["default"]["OPTIONS"].update(
-    {
-        "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-    }
-)
 
 # ==================================================
 # EMAIL (ONLY IF USED)
