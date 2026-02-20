@@ -13,6 +13,7 @@ from .serializers import (
     DocumentDownloadSerializer,
 )
 from .services.access import can_user_download_document
+from .pagination import DocumentCursorPagination
 
 
 # =====================================================
@@ -20,14 +21,19 @@ from .services.access import can_user_download_document
 # ===================================================
 class DocumentListView(generics.ListAPIView):
     """
-    Lists all active documents.
+    Lists all active documents (Cursor paginated).
     """
 
     permission_classes = [AllowAny]
     serializer_class = DocumentListSerializer
+    pagination_class = DocumentCursorPagination
 
     def get_queryset(self):
-        return Document.objects.filter(is_active=True).order_by("-created_at")
+        return (
+            Document.objects
+            .filter(is_active=True)
+            .order_by("-created_at")
+        )
 
 
 # =====================================================
