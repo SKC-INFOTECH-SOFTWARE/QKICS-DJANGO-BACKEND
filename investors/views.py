@@ -13,9 +13,8 @@ from .serializers import (
     StartupStageSerializer,
 )
 from users.permissions import IsAdmin
-from .pagination import InvestorPagination
-from django.db.models import Prefetch
-
+from rest_framework.generics import ListAPIView
+from .pagination import InvestorCursorPagination
 User = get_user_model()
 
 
@@ -77,28 +76,26 @@ class InvestorProfileSelfView(APIView):
 
 
 # Public: List all verified investors
-class InvestorListView(APIView):
+class InvestorListView(ListAPIView):
+    serializer_class = InvestorReadSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    pagination_class = InvestorCursorPagination
 
-    def get(self, request):
-        investors = (
+    def get_queryset(self):
+        return (
             Investor.objects
-            .filter(verified_by_admin=True, is_active=True)
+            .filter(
+                verified_by_admin=True,
+                is_active=True
+            )
             .select_related("user")
-            .prefetch_related("focus_industries", "preferred_stages")
+            .prefetch_related(
+                "focus_industries",
+                "preferred_stages"
+            )
             .order_by("-created_at")
         )
-
-        paginator = InvestorPagination()
-        page = paginator.paginate_queryset(investors, request)
-
-        serializer = InvestorReadSerializer(
-            page, many=True, context={"request": request}
-        )
-
-        return paginator.get_paginated_response(serializer.data)
-
-
+        
 # Public: Detail by username
 class InvestorDetailView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
