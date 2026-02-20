@@ -6,13 +6,15 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from .models import Investor, Industry, StartupStage
 from .serializers import (
-    InvestorReadSerializer, InvestorWriteSerializer,
-    InvestorAdminVerifySerializer, IndustrySerializer, StartupStageSerializer
+    InvestorReadSerializer,
+    InvestorWriteSerializer,
+    InvestorAdminVerifySerializer,
+    IndustrySerializer,
+    StartupStageSerializer,
 )
 from users.permissions import IsAdmin
 
 User = get_user_model()
-
 
 
 class AdminCreateInvestorProfileView(APIView):
@@ -32,14 +34,18 @@ class AdminCreateInvestorProfileView(APIView):
                 created_by_admin=request.user,
                 verified_by_admin=True,
                 application_status="approved",
-                is_active=True
+                is_active=True,
             )
-            return Response({
-                "message": "Investor profile created and LIVE",
-                "investor_id": investor.id,
-                "display_name": investor.display_name
-            }, status=201)
+            return Response(
+                {
+                    "message": "Investor profile created and LIVE",
+                    "investor_id": investor.id,
+                    "display_name": investor.display_name,
+                },
+                status=201,
+            )
         return Response(serializer.errors, status=400)
+
 
 class InvestorProfileSelfView(APIView):
     permission_classes = [IsAuthenticated]
@@ -49,7 +55,7 @@ class InvestorProfileSelfView(APIView):
             investor = request.user.investor_profile
         except Investor.DoesNotExist:
             return Response({"detail": "Investor profile not found."}, status=404)
-        
+
         serializer = InvestorReadSerializer(investor, context={"request": request})
         return Response(serializer.data)
 
@@ -62,8 +68,11 @@ class InvestorProfileSelfView(APIView):
         serializer = InvestorWriteSerializer(investor, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(InvestorReadSerializer(investor, context={"request": request}).data)
+            return Response(
+                InvestorReadSerializer(investor, context={"request": request}).data
+            )
         return Response(serializer.errors, status=400)
+
 
 # Public: List all verified investors
 class InvestorListView(APIView):
@@ -71,7 +80,9 @@ class InvestorListView(APIView):
 
     def get(self, request):
         investors = Investor.objects.filter(verified_by_admin=True, is_active=True)
-        serializer = InvestorReadSerializer(investors, many=True, context={"request": request})
+        serializer = InvestorReadSerializer(
+            investors, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
 
@@ -81,7 +92,9 @@ class InvestorDetailView(APIView):
 
     def get(self, request, username):
         user = get_object_or_404(User, username=username)
-        investor = get_object_or_404(Investor, user=user, verified_by_admin=True, is_active=True)
+        investor = get_object_or_404(
+            Investor, user=user, verified_by_admin=True, is_active=True
+        )
         serializer = InvestorReadSerializer(investor, context={"request": request})
         return Response(serializer.data)
 
@@ -100,9 +113,9 @@ class AdminCreateInvestorView(APIView):
 
         # Validation
         if not all([username, email, password]):
-            return Response({
-                "error": "username, email, and password are required"
-            }, status=400)
+            return Response(
+                {"error": "username, email, and password are required"}, status=400
+            )
 
         if User.objects.filter(username=username).exists():
             return Response({"error": "Username already taken"}, status=400)
@@ -111,10 +124,7 @@ class AdminCreateInvestorView(APIView):
 
         # Create user with admin-defined password
         user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            user_type="investor"
+            username=username, email=email, password=password, user_type="investor"
         )
 
         # Create investor profile
@@ -125,14 +135,17 @@ class AdminCreateInvestorView(APIView):
                 created_by_admin=request.user,
                 verified_by_admin=True,
                 application_status="approved",
-                is_active=True
+                is_active=True,
             )
-            return Response({
-                "message": "Investor created successfully",
-                "username": user.username,
-                "password_set_by_admin": True,
-                "investor_id": investor.id,
-            }, status=201)
+            return Response(
+                {
+                    "message": "Investor created successfully",
+                    "username": user.username,
+                    "password_set_by_admin": True,
+                    "investor_id": investor.id,
+                },
+                status=201,
+            )
 
         # Rollback if profile fails
         user.delete()
@@ -148,7 +161,11 @@ class AdminVerifyInvestorView(APIView):
         serializer = InvestorAdminVerifySerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(investor)
-            action = "approved" if serializer.validated_data["action"] == "approve" else "rejected"
+            action = (
+                "approved"
+                if serializer.validated_data["action"] == "approve"
+                else "rejected"
+            )
             return Response({"detail": f"Investor {action}."})
         return Response(serializer.errors, status=400)
 
@@ -161,4 +178,6 @@ class IndustryListView(APIView):
 
 class StartupStageListView(APIView):
     def get(self, request):
-        return Response(StartupStageSerializer(StartupStage.objects.all(), many=True).data)
+        return Response(
+            StartupStageSerializer(StartupStage.objects.all(), many=True).data
+        )
