@@ -13,20 +13,28 @@ from .serializers import (
 )
 from users.permissions import IsAdmin
 from django.contrib.auth import get_user_model
+from rest_framework.generics import ListAPIView
+from .pagination import EntrepreneurCursorPagination
 
 User = get_user_model()
 
 
 # Public: List verified entrepreneurs
-class EntrepreneurListView(APIView):
+class EntrepreneurListView(ListAPIView):
+    serializer_class = EntrepreneurProfileReadSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    pagination_class = EntrepreneurCursorPagination
 
-    def get(self, request):
-        profiles = EntrepreneurProfile.objects.filter(
-            verified_by_admin=True, application_status="approved"
+    def get_queryset(self):
+        return (
+            EntrepreneurProfile.objects
+            .filter(
+                verified_by_admin=True,
+                application_status="approved"
+            )
+            .select_related("user")
+            .order_by("-created_at")
         )
-        serializer = EntrepreneurProfileReadSerializer(profiles, many=True, context={"request": request})
-        return Response(serializer.data)
 
 
 # Public: Detail by username
