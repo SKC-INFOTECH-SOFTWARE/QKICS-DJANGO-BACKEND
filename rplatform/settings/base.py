@@ -1,149 +1,92 @@
-from pathlib import Path
+from .base import *
 from decouple import config
-from datetime import timedelta
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+# ==================================================
+# CORE
+# ==================================================
+DEBUG = False
 
-SECRET_KEY = config("SECRET_KEY")
-DEBUG = config("DEBUG", default=False, cast=bool)
 ALLOWED_HOSTS = config(
-    "ALLOWED_HOSTS",
-    default="localhost,127.0.0.1"
+    "ALLOWED_HOSTS", default="", cast=str
 ).split(",")
 
+# ==================================================
+# SECURITY
+# ==================================================
+SECURE_SSL_REDIRECT = True
 
-INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    # plugins===========
-    "corsheaders",
-    "rest_framework",
-    "rest_framework_simplejwt",
-    "rest_framework_simplejwt.token_blacklist",
-    "channels",
-    # apps=============
-    "users",
-    "experts",
-    "entrepreneurs",
-    "investors",
-    "community",
-    "chat",
-    "bookings",
-    "payments",
-    "subscriptions",
-    "documents",
-    "adminpanel",
-]
-ROOT_URLCONF = "rplatform.urls"
-ASGI_APPLICATION = "rplatform.asgi.application"
-MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
-CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=str).split(",")
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+
+# ==================================================
+# CORS / CSRF
+# ==================================================
 CORS_ALLOW_CREDENTIALS = True
 
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ],
-    "DEFAULT_PAGINATION_CLASS": "community.pagination.DefaultCursorPagination",
-    "PAGE_SIZE": 10,
-}
+CORS_ALLOWED_ORIGINS = config(
+    "CORS_ALLOWED_ORIGINS", default="", cast=str
+).split(",")
 
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS", default="", cast=str
+).split(",")
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
-    "ROTATE_REFRESH_TOKENS": False,
-    "BLACKLIST_AFTER_ROTATION": False,
-    "ROTATE_REFRESH_TOKENS_ON_REFRESH": False,
-    "REFRESH_TOKEN_IN_RESPONSE": False,
-}
-
-DATABASES = {
-    "default": {
-        "ENGINE": config("DB_ENGINE"),
-        "NAME": config("DB_NAME"),
-        "USER": config("DB_USER"),
-        "PASSWORD": config("DB_PASSWORD"),
-        "HOST": config("DB_HOST"),
-        "PORT": config("DB_PORT"),
-        "OPTIONS": {
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
-    }
-}
-
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
-    },
-]
-STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = (
-    [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
+# ==================================================
+# STATIC FILES
+# ==================================================
+STATICFILES_STORAGE = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
 )
 
+# ==================================================
+# DATABASE (OPTIONAL SSL – ENABLE FOR CLOUD DB)
+# ==================================================
+DATABASES["default"]["OPTIONS"].update(
+    {
+        "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+    }
+)
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# ==================================================
+# EMAIL (ONLY IF USED)
+# ==================================================
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-AUTH_USER_MODEL = "users.User"
-
-ACCOUNT_EMAIL_REQUIRED = False
-
-# timeze kolkata
-TIME_ZONE = "Asia/Kolkata"
-USE_TZ = True
-LANGUAGE_CODE = "en-us"
-USE_I18N = True
-USE_L10N = True
-
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [
-                (config("REDIS_HOST", default="localhost"),
-                 int(config("REDIS_PORT", default=6379)))
-            ],
-        },
+# ==================================================
+# LOGGING (PRODUCTION SAFE)
+# ==================================================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
     },
 }
-
-
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-        "OPTIONS": {
-            "min_length": 4,
-        },
-    },
-]
+# ==================================================
+# REDIS CACHE
+# ==================================================
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": f"redis://{config('REDIS_HOST', default='127.0.0.1')}:{config('REDIS_PORT', default=6379)}/0",
+    }
+}

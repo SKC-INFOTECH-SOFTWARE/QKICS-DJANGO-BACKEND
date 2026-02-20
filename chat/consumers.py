@@ -163,13 +163,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def mark_as_read(self, message_id):
         if not message_id:
             return
-
-        message = Message.objects.get(id=message_id)
-
-        ReadReceipt.objects.get_or_create(
-            message=message,
-            user=self.user
-        )
-
-        message.is_read = True
-        message.save(update_fields=["is_read"])
+        try:
+            message = Message.objects.get(id=message_id)
+            ReadReceipt.objects.get_or_create(message=message, user=self.user)
+            message.is_read = True
+            message.save(update_fields=["is_read"])
+        except Message.DoesNotExist:
+            return

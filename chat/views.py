@@ -44,9 +44,9 @@ class MarkRoomAsReadView(APIView):
         user = request.user
         room = get_object_or_404(ChatRoom, id=room_id)
 
-        booking = room.booking
+        # booking = room.booking
 
-        if user not in [booking.user, booking.expert]:
+        if user not in [room.user, room.expert]:  # ← use room directly
             return Response(
                 {"status": "error", "message": "Not allowed"},
                 status=status.HTTP_403_FORBIDDEN,

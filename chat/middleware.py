@@ -18,16 +18,6 @@ def get_user(token):
 
 class JWTAuthMiddleware(BaseMiddleware):
     async def __call__(self, scope, receive, send):
-
-        # ✅ DEV MODE BYPASS
-        if scope["server"][0] in ("127.0.0.1", "localhost"):
-            from django.contrib.auth import get_user_model
-
-            User = get_user_model()
-            scope["user"] = await sync_to_async(User.objects.first)()
-            return await super().__call__(scope, receive, send)
-
-        # 🔐 PROD MODE (unchanged)
         query_string = parse_qs(scope["query_string"].decode())
         token = query_string.get("token")
 
