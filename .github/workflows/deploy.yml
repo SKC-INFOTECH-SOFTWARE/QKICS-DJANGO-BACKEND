@@ -48,7 +48,8 @@ jobs:
       - name: Add VPS to known hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -T 10 -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>&1 || echo "keyscan failed"
+          cat ~/.ssh/known_hosts
 
       - name: Create release tag
         id: release
@@ -76,6 +77,9 @@ jobs:
 
           cd $DEPLOY_PATH
 
+          # ==============================
+          # BACKUP
+          # ==============================
           sudo mkdir -p $BACKUP_PATH
           BACKUP_DIR="$BACKUP_PATH/backup-$(date +%Y%m%d-%H%M%S)"
           sudo mkdir -p $BACKUP_DIR
@@ -86,41 +90,68 @@ jobs:
           git rev-parse HEAD > $BACKUP_DIR/git-commit.txt
           echo "$RELEASE_TAG" > $BACKUP_DIR/release-tag.txt
 
+          # ==============================
+          # PULL CODE
+          # ==============================
           echo "Pulling latest code..."
           git fetch --all --tags
           git pull origin main
 
+          # ==============================
+          # BUILD
+          # ==============================
           echo "Rebuilding containers..."
           sudo docker-compose -f docker-compose.prod.yml build --no-cache
 
+          # ==============================
+          # RESTART
+          # entrypoint.sh handles: migrate + collectstatic + gunicorn
+          # ==============================
           echo "Stopping old containers..."
           sudo docker-compose -f docker-compose.prod.yml down
 
           echo "Starting containers..."
           sudo docker-compose -f docker-compose.prod.yml up -d
 
+          # ==============================
+          # WAIT FOR STARTUP
+          # ==============================
           echo "Waiting for startup..."
-          sleep 12
+          sleep 60
 
-          echo "Running migrations..."
-          sudo docker-compose -f docker-compose.prod.yml exec -T django python manage.py migrate --noinput
-
-          echo "Collecting static..."
-          sudo docker-compose -f docker-compose.prod.yml exec -T django python manage.py collectstatic --noinput
-
+          # ==============================
+          # PERMISSIONS & NGINX
+          # ==============================
           echo "Fixing permissions..."
           sudo chown -R www-data:www-data media staticfiles || true
 
           echo "Reloading nginx..."
           sudo systemctl reload nginx
 
-          echo "Health check..."
-          curl -f http://localhost:9000 || exit 1
+          # ==============================
+          # HEALTH CHECK — retries every 10s for up to 100s
+          # ==============================
+          echo "Running health check..."
+          for i in $(seq 1 10); do
+            echo "Health check attempt $i/10..."
+            if curl -sf http://localhost:9000/admin/login/ > /dev/null; then
+              echo "✅ Health check passed!"
+              break
+            fi
+            if [ $i -eq 10 ]; then
+              echo "❌ Health check failed after 10 attempts"
+              echo "--- Last 50 lines of Django logs ---"
+              sudo docker-compose -f docker-compose.prod.yml logs --tail=50 django
+              exit 1
+            fi
+            echo "Not ready yet, retrying in 10s..."
+            sleep 10
+          done
 
           echo "$RELEASE_TAG" > .current-release
 
           echo "=============================="
-          echo "DEPLOYMENT SUCCESSFUL"
+          echo "DEPLOYMENT SUCCESSFUL: $RELEASE_TAG"
           echo "=============================="
 
           ENDSSH

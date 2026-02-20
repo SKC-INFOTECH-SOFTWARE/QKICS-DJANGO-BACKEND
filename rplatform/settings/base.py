@@ -2,16 +2,23 @@ from pathlib import Path
 from decouple import config
 from datetime import timedelta
 
+# ==================================================
+# BASE DIRECTORY
+# ==================================================
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# ==================================================
+# SECURITY
+# ==================================================
 SECRET_KEY = config("SECRET_KEY")
-DEBUG = config("DEBUG", default=False, cast=bool)
-ALLOWED_HOSTS = config(
-    "ALLOWED_HOSTS",
-    default="localhost,127.0.0.1"
-).split(",")
 
+DEBUG = False  # overridden per environment
 
+ALLOWED_HOSTS = []
+
+# ==================================================
+# INSTALLED APPS
+# ==================================================
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -19,13 +26,16 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # plugins===========
-    "corsheaders",
+
+    # Third-party
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    "corsheaders",
     "channels",
-    # apps=============
+    "whitenoise",
+
+    # Local apps
     "users",
     "experts",
     "entrepreneurs",
@@ -38,13 +48,15 @@ INSTALLED_APPS = [
     "documents",
     "adminpanel",
 ]
-ROOT_URLCONF = "rplatform.urls"
-ASGI_APPLICATION = "rplatform.asgi.application"
+
+# ==================================================
+# MIDDLEWARE
+# ==================================================
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -52,42 +64,16 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# ==================================================
+# URLS / WSGI / ASGI
+# ==================================================
+ROOT_URLCONF = "rplatform.urls"
+WSGI_APPLICATION = "rplatform.wsgi.application"
+ASGI_APPLICATION = "rplatform.asgi.application"
 
-CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=str).split(",")
-CORS_ALLOW_CREDENTIALS = True
-
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ],
-    "DEFAULT_PAGINATION_CLASS": "community.pagination.DefaultCursorPagination",
-    "PAGE_SIZE": 10,
-}
-
-
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
-    "ROTATE_REFRESH_TOKENS": False,
-    "BLACKLIST_AFTER_ROTATION": False,
-    "ROTATE_REFRESH_TOKENS_ON_REFRESH": False,
-    "REFRESH_TOKEN_IN_RESPONSE": False,
-}
-
-DATABASES = {
-    "default": {
-        "ENGINE": config("DB_ENGINE"),
-        "NAME": config("DB_NAME"),
-        "USER": config("DB_USER"),
-        "PASSWORD": config("DB_PASSWORD"),
-        "HOST": config("DB_HOST"),
-        "PORT": config("DB_PORT"),
-        "OPTIONS": {
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
-    }
-}
-
+# ==================================================
+# TEMPLATES
+# ==================================================
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -103,47 +89,98 @@ TEMPLATES = [
         },
     },
 ]
+
+# ==================================================
+# DATABASE
+# ==================================================
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": config("DB_NAME"),
+        "USER": config("DB_USER"),
+        "PASSWORD": config("DB_PASSWORD"),
+        "HOST": config("DB_HOST", default="127.0.0.1"),
+        "PORT": config("DB_PORT", default="3306"),
+        "OPTIONS": {
+            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
+    }
+}
+
+# ==================================================
+# AUTH USER MODEL
+# ==================================================
+AUTH_USER_MODEL = "users.User"
+
+# ==================================================
+# PASSWORD VALIDATORS
+# ==================================================
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# ==================================================
+# INTERNATIONALIZATION
+# ==================================================
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = "UTC"
+USE_I18N = True
+USE_TZ = True
+
+# ==================================================
+# STATIC FILES
+# ==================================================
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = (
-    [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
-)
 
-
+# ==================================================
+# MEDIA FILES
+# ==================================================
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# ==================================================
+# DEFAULT PRIMARY KEY
+# ==================================================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-AUTH_USER_MODEL = "users.User"
 
-ACCOUNT_EMAIL_REQUIRED = False
+# ==================================================
+# REST FRAMEWORK
+# ==================================================
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+}
 
-# timeze kolkata
-TIME_ZONE = "Asia/Kolkata"
-USE_TZ = True
-LANGUAGE_CODE = "en-us"
-USE_I18N = True
-USE_L10N = True
+# ==================================================
+# JWT
+# ==================================================
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
 
+# ==================================================
+# CHANNELS (Redis)
+# ==================================================
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [
-                (config("REDIS_HOST", default="localhost"),
-                 int(config("REDIS_PORT", default=6379)))
-            ],
+            "hosts": [(
+                config("REDIS_HOST", default="127.0.0.1"),
+                config("REDIS_PORT", default=6380, cast=int),
+            )],
         },
     },
 }
-
-
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-        "OPTIONS": {
-            "min_length": 4,
-        },
-    },
-]

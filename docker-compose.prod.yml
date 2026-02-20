@@ -1,6 +1,18 @@
 version: '3.8'
-
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: Qkics-Redis
+    restart: unless-stopped
+    network_mode: host
+    command: redis-server --bind 127.0.0.1 --port 6380 --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6380", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
   django:
     build:
       context: .
@@ -15,3 +27,9 @@ services:
       - ./media:/app/media
     restart: unless-stopped
     network_mode: host
+    depends_on:
+      redis:
+        condition: service_healthy
+volumes:
+  redis_data:
+    driver: local
