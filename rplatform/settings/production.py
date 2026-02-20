@@ -13,7 +13,7 @@ ALLOWED_HOSTS = config(
 # ==================================================
 # SECURITY
 # ==================================================
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False  # Nginx handles SSL termination
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
@@ -48,9 +48,8 @@ STATICFILES_STORAGE = (
     "whitenoise.storage.CompressedManifestStaticFilesStorage"
 )
 
-
 # ==================================================
-# EMAIL (ONLY IF USED)
+# EMAIL
 # ==================================================
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = config("EMAIL_HOST", default="")
@@ -60,7 +59,7 @@ EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 
 # ==================================================
-# LOGGING (PRODUCTION SAFE)
+# LOGGING
 # ==================================================
 LOGGING = {
     "version": 1,
@@ -72,4 +71,14 @@ LOGGING = {
         "handlers": ["console"],
         "level": "INFO",
     },
+}
+
+# ==================================================
+# REDIS CACHE
+# ==================================================
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": f"redis://{config('REDIS_HOST', default='127.0.0.1')}:{config('REDIS_PORT', default=6380)}/0",
+    }
 }
