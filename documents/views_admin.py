@@ -7,6 +7,8 @@ from users.permissions import IsAdmin
 from .models import Document
 from .serializers_admin import AdminDocumentSerializer
 
+from .pagination import DocumentCursorPagination
+
 
 class AdminDocumentCreateView(generics.CreateAPIView):
     permission_classes = [IsAdmin]
@@ -19,9 +21,14 @@ class AdminDocumentCreateView(generics.CreateAPIView):
 class AdminDocumentListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = AdminDocumentSerializer
+    pagination_class = DocumentCursorPagination
 
     def get_queryset(self):
-        return Document.objects.all().order_by("-created_at")
+        return (
+            Document.objects
+            .select_related("uploaded_by")
+            .order_by("-created_at")
+        )
 
 
 class AdminDocumentUpdateView(generics.UpdateAPIView):
