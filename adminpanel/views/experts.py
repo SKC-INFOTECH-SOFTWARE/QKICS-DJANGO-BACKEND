@@ -18,7 +18,9 @@ class AdminExpertApplicationListView(ListAPIView):
     Admin: List all expert applications.
     """
 
-    queryset = ExpertProfile.objects.select_related("user").all()
+    queryset = ExpertProfile.objects.select_related("user").filter(
+        application_status__in=["pending", "approved", "rejected"]
+    )
     serializer_class = ExpertProfileReadSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
     pagination_class = AdminPagination
