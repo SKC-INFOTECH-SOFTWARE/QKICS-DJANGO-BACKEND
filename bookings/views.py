@@ -16,6 +16,12 @@ from .serializers import (
     BookingApprovalSerializer,
 )
 
+from notifications.services.events import (
+    notify_booking_created,
+    notify_booking_approved,
+    notify_booking_declined,
+)
+
 # ===========================================================
 # SLOT VIEWS
 # ============================================================
@@ -129,8 +135,8 @@ class BookingListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         booking = serializer.save()
+        notify_booking_created(booking)
 
-        # 🔥 THIS IS THE KEY LINE
         response_serializer = BookingSerializer(
             booking,
             context={"request": request},
@@ -206,7 +212,7 @@ class BookingApprovalView(APIView):
                     "updated_at",
                 ]
             )
-
+            notify_booking_approved(booking)
             return Response(
                 {"detail": "Booking approved. Awaiting payment."},
                 status=status.HTTP_200_OK,
@@ -226,7 +232,7 @@ class BookingApprovalView(APIView):
                 "updated_at",
             ]
         )
-
+        notify_booking_declined(booking)
         return Response(
             {"detail": "Booking declined."},
             status=status.HTTP_200_OK,
