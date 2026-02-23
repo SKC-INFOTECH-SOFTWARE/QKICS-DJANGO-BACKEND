@@ -30,7 +30,7 @@ from users.serializers import PublicUserProfileSerializer
 from django.shortcuts import get_object_or_404
 
 # ------------------------------------------------------------------------
-
+from notifications.services.client import unregister_push_token
 
 # ────────────────────── REGISTER API ──────────────────────
 class RegisterAPIView(APIView):
@@ -239,6 +239,10 @@ class LogoutAPIView(APIView):
                 token = RefreshToken(refresh_token)
                 token.blacklist()
 
+            push_token = request.data.get("pushToken")
+            if push_token:
+                unregister_push_token(token=push_token)
+                
             response = Response({"message": "Logged out successfully"}, status=200)
             response.delete_cookie("refresh_token")
             return response
