@@ -30,7 +30,7 @@ def notify_booking_created(booking):
                 f"{user.get_full_name() or user.username} has requested a session "
                 f"on {booking.start_datetime.strftime('%d %b %Y at %H:%M')}."
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={
                 "bookingId": str(booking.uuid),
                 "userId": str(user.id),
@@ -60,7 +60,7 @@ def notify_booking_approved(booking):
                 f"{booking.start_datetime.strftime('%d %b %Y at %H:%M')} has been approved. "
                 "Please complete payment to confirm your booking."
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={
                 "bookingId": str(booking.uuid),
                 "expertId": str(expert.id),
@@ -93,7 +93,7 @@ def notify_booking_declined(booking):
                     else ""
                 )
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={
                 "bookingId": str(booking.uuid),
                 "declineReason": booking.decline_reason or "",
@@ -123,7 +123,7 @@ def notify_booking_confirmed(booking):
                 f"{booking.start_datetime.strftime('%d %b %Y at %H:%M')} is confirmed. "
                 "Your chat room is now open."
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={
                 "bookingId": str(booking.uuid),
                 "chatRoomId": (
@@ -143,7 +143,7 @@ def notify_booking_confirmed(booking):
                 f"Payment received! Your session with {user.get_full_name() or user.username} on "
                 f"{booking.start_datetime.strftime('%d %b %Y at %H:%M')} is confirmed."
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={
                 "bookingId": str(booking.uuid),
                 "chatRoomId": (
@@ -178,7 +178,7 @@ def notify_booking_cancelled(booking, cancelled_by):
                     else ""
                 )
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={
                 "bookingId": str(booking.uuid),
                 "cancelledBy": str(cancelled_by.id),
@@ -232,7 +232,7 @@ def notify_expert_application_approved(expert_profile):
                 "Congratulations! Your expert application has been approved. "
                 "You can now create slots and start accepting bookings."
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={"expertProfileId": expert_profile.id},
         )
 
@@ -257,7 +257,7 @@ def notify_expert_application_rejected(expert_profile):
                     else ""
                 )
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={"expertProfileId": expert_profile.id},
         )
 
@@ -283,7 +283,7 @@ def notify_entrepreneur_application_approved(entrepreneur_profile):
                 f"Congratulations! Your startup '{entrepreneur_profile.startup_name}' "
                 "has been approved and is now listed on the platform."
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={"entrepreneurProfileId": entrepreneur_profile.id},
         )
 
@@ -308,7 +308,7 @@ def notify_entrepreneur_application_rejected(entrepreneur_profile):
                     else ""
                 )
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={"entrepreneurProfileId": entrepreneur_profile.id},
         )
 
@@ -417,7 +417,7 @@ def notify_subscription_activated(subscription):
                 f"Your {subscription.plan.name} subscription is now active "
                 f"until {subscription.end_date.strftime('%d %b %Y')}. Enjoy premium access!"
             ),
-            channels=["IN_APP", "PUSH", "EMAIL"],
+            channels=["IN_APP", "PUSH"],
             data={
                 "planName": subscription.plan.name,
                 "endDate": subscription.end_date.isoformat(),
