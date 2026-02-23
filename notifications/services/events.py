@@ -333,7 +333,7 @@ def notify_post_liked(post, liked_by):
             user_id=author.id,
             title="Someone liked your post",
             body=f"{liked_by.get_full_name() or liked_by.username} liked your post.",
-            channels=["IN_APP"],
+            channels=["IN_APP", "PUSH"],
             data={
                 "postId": post.id,
                 "likedBy": str(liked_by.id),
