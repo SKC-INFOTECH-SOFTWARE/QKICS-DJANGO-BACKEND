@@ -1,12 +1,11 @@
 import logging
 import requests
 
-from rplatform.settings.base import NOTIFICATION_API_KEY, NOTIFICATION_SERVICE_URL
+from rplatform.settings.base import NOTIFICATION_API_KEY, NOTIFICATION_SERVICE_URL, DEFAULT_CHANNELS
 
 logger = logging.getLogger(__name__)
 
-# Default channels to use when none are specified
-DEFAULT_CHANNELS = ["IN_APP", "PUSH"]
+
 
 
 def _headers():

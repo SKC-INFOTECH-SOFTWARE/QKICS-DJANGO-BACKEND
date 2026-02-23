@@ -190,4 +190,6 @@ CHANNEL_LAYERS = {
 # CHANNELS (Redis)
 # ==================================================
 NOTIFICATION_SERVICE_URL = config("NOTIFICATION_SERVICE_URL", default="http://192.168.0.159:3000")
-NOTIFICATION_API_KEY = config("NOTIFICATION_API_KEY", default="")       
+NOTIFICATION_API_KEY = config("NOTIFICATION_API_KEY", default="")
+
+DEFAULT_CHANNELS = ["IN_APP", "PUSH"]
