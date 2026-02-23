@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "subscriptions",
     "documents",
     "adminpanel",
+    "notifications",
 ]
 
 # ==================================================
@@ -184,3 +185,9 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# ==================================================
+# CHANNELS (Redis)
+# ==================================================
+NOTIFICATION_SERVICE_URL = config("NOTIFICATION_SERVICE_URL", default="http://localhost:8000")
+NOTIFICATION_API_KEY = config("NOTIFICATION_API_KEY", default="your_notification_api_key")       
