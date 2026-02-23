@@ -33,7 +33,11 @@ from django.utils import timezone
 
 User = get_user_model()
 
-
+from notifications.services.events import (
+    notify_post_liked,
+    notify_post_commented,
+    notify_comment_replied,
+)
 # ---------------------------
 # TAG LIST + CREATE (Admin Only for Create)
 # ---------------------------
@@ -262,7 +266,7 @@ class CommentListCreateView(ListAPIView):
             author=request.user,
             post=post,
         )
-
+        notify_post_commented(comment)
         return Response(
             CommentSerializer(comment, context={"request": request}).data,
             status=201,
@@ -348,7 +352,7 @@ class ReplyListCreateView(ListAPIView):
             preview_content=serializer.validated_data["preview_content"],
             full_content=serializer.validated_data["full_content"],
         )
-
+        notify_comment_replied(reply)
         return Response(
             ReplySerializer(reply, context={"request": request}).data, status=201
         )
@@ -397,6 +401,7 @@ class LikeToggleView(APIView):
         if post_id:
             target = get_object_or_404(Post, id=post_id)
             like_qs = Like.objects.filter(user=user, post=target)
+            notify_post_liked(target, liked_by=user)
             serializer_class = PostSerializer
 
         elif comment_id:
