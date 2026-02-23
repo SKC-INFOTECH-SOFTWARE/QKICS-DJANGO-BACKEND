@@ -1,13 +1,9 @@
 import logging
 import requests
-from django.conf import settings
+
+from rplatform.settings.base import NOTIFICATION_API_KEY, NOTIFICATION_SERVICE_URL
 
 logger = logging.getLogger(__name__)
-
-NOTIFICATION_SERVICE_URL = getattr(
-    settings, "NOTIFICATION_SERVICE_URL", "http://localhost:3000"
-)
-NOTIFICATION_API_KEY = getattr(settings, "NOTIFICATION_API_KEY", "")
 
 # Default channels to use when none are specified
 DEFAULT_CHANNELS = ["IN_APP", "PUSH"]
