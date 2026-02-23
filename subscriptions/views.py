@@ -14,7 +14,7 @@ from subscriptions.serializers import (
     UserSubscriptionSerializer,
 )
 from subscriptions.services.access import get_active_subscription
-
+from notifications.services.events import notify_subscription_activated
 
 class SubscriptionPlanListView(generics.ListAPIView):
     """
@@ -112,7 +112,7 @@ class SubscribeView(APIView):
             end_date=end_date,
             is_active=True,
         )
-
+        notify_subscription_activated(subscription)
         return Response(
             UserSubscriptionSerializer(subscription).data,
             status=status.HTTP_201_CREATED,
