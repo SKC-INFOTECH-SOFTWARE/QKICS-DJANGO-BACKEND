@@ -17,6 +17,10 @@ from rest_framework.generics import ListAPIView
 from .pagination import EntrepreneurCursorPagination
 
 User = get_user_model()
+from notifications.services.events import (
+    notify_entrepreneur_application_approved,
+    notify_entrepreneur_application_rejected,
+)
 
 
 # Public: List verified entrepreneurs
@@ -27,10 +31,8 @@ class EntrepreneurListView(ListAPIView):
 
     def get_queryset(self):
         return (
-            EntrepreneurProfile.objects
-            .filter(
-                verified_by_admin=True,
-                application_status="approved"
+            EntrepreneurProfile.objects.filter(
+                verified_by_admin=True, application_status="approved"
             )
             .select_related("user")
             .order_by("-created_at")
@@ -46,30 +48,39 @@ class EntrepreneurDetailView(APIView):
         profile = get_object_or_404(
             EntrepreneurProfile, user=user, verified_by_admin=True
         )
-        serializer = EntrepreneurProfileReadSerializer(profile, context={"request": request})
+        serializer = EntrepreneurProfileReadSerializer(
+            profile, context={"request": request}
+        )
         return Response(serializer.data)
 
 
 # Self: Create / View / Update own profile
 class EntrepreneurProfileSelfView(APIView):
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request):
         profile = getattr(request.user, "entrepreneur_profile", None)
         if not profile:
             return Response({"detail": "Profile not found."}, status=404)
-        serializer = EntrepreneurProfileReadSerializer(profile, context={"request": request})
+        serializer = EntrepreneurProfileReadSerializer(
+            profile, context={"request": request}
+        )
         return Response(serializer.data)
 
     def post(self, request):
         if request.user.user_type in ["expert", "investor"]:
-            return Response({
-                "error": "You are already a verified expert or investor. Cannot create entrepreneur profile."
-            }, status=400)
+            return Response(
+                {
+                    "error": "You are already a verified expert or investor. Cannot create entrepreneur profile."
+                },
+                status=400,
+            )
 
         if hasattr(request.user, "entrepreneur_profile"):
-            return Response({"error": "Entrepreneur profile already exists"}, status=400)
-        
+            return Response(
+                {"error": "Entrepreneur profile already exists"}, status=400
+            )
+
         if hasattr(request.user, "entrepreneur_profile"):
             return Response({"detail": "Profile already exists."}, status=400)
 
@@ -77,8 +88,10 @@ class EntrepreneurProfileSelfView(APIView):
         if serializer.is_valid():
             profile = serializer.save(user=request.user)
             return Response(
-                EntrepreneurProfileReadSerializer(profile, context={"request": request}).data,
-                status=201
+                EntrepreneurProfileReadSerializer(
+                    profile, context={"request": request}
+                ).data,
+                status=201,
             )
         return Response(serializer.errors, status=400)
 
@@ -87,11 +100,15 @@ class EntrepreneurProfileSelfView(APIView):
         if not profile:
             return Response({"detail": "Profile not found."}, status=404)
 
-        serializer = EntrepreneurProfileWriteSerializer(profile, data=request.data, partial=True)
+        serializer = EntrepreneurProfileWriteSerializer(
+            profile, data=request.data, partial=True
+        )
         if serializer.is_valid():
             serializer.save()
             return Response(
-                EntrepreneurProfileReadSerializer(profile, context={"request": request}).data
+                EntrepreneurProfileReadSerializer(
+                    profile, context={"request": request}
+                ).data
             )
         return Response(serializer.errors, status=400)
 
@@ -119,9 +136,13 @@ class AdminVerifyEntrepreneurView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
     def patch(self, request, profile_id):
-        profile = get_object_or_404(EntrepreneurProfile.objects.select_related("user"), id=profile_id)
-        serializer = EntrepreneurAdminVerifySerializer(data=request.data)  # Reuse same serializer
-        
+        profile = get_object_or_404(
+            EntrepreneurProfile.objects.select_related("user"), id=profile_id
+        )
+        serializer = EntrepreneurAdminVerifySerializer(
+            data=request.data
+        )  # Reuse same serializer
+
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
@@ -130,9 +151,12 @@ class AdminVerifyEntrepreneurView(APIView):
         if action == "approve":
             # ←←← BLOCK IF USER ALREADY HAS ANOTHER VERIFIED ROLE ←←←
             if profile.user.user_type in ["expert", "investor"]:
-                return Response({
-                    "error": "User already has a verified role (expert/investor). Cannot approve as entrepreneur."
-                }, status=400)
+                return Response(
+                    {
+                        "error": "User already has a verified role (expert/investor). Cannot approve as entrepreneur."
+                    },
+                    status=400,
+                )
 
             # Auto-reject pending expert profile
             if hasattr(profile.user, "expert_profile"):
@@ -146,12 +170,15 @@ class AdminVerifyEntrepreneurView(APIView):
             profile.user.user_type = "entrepreneur"
             profile.user.save()
             profile.save()
-
-            return Response({"message": "Entrepreneur approved. Other applications auto-rejected."})
+            notify_entrepreneur_application_approved(profile)
+            return Response(
+                {"message": "Entrepreneur approved. Other applications auto-rejected."}
+            )
 
         elif action == "reject":
             profile.application_status = "rejected"
             profile.save()
+            notify_entrepreneur_application_rejected(profile)
             return Response({"message": "Entrepreneur application rejected."})
 
         return Response({"error": "Invalid action"}, status=400)
