@@ -5,6 +5,7 @@ from django.utils import timezone
 from bookings.models import Booking
 from payments.models import Payment
 from chat.services.create_room import get_or_create_chat_room
+from notifications.services.events import notify_booking_confirmed
 
 
 def confirm_booking_after_payment(*, payment: Payment):
@@ -20,9 +21,7 @@ def confirm_booking_after_payment(*, payment: Payment):
         return
 
     with transaction.atomic():
-        booking = Booking.objects.select_for_update().get(
-            uuid=payment.reference_id
-        )
+        booking = Booking.objects.select_for_update().get(uuid=payment.reference_id)
 
         # Only valid flow
         if booking.status != Booking.STATUS_AWAITING_PAYMENT:
@@ -54,3 +53,4 @@ def confirm_booking_after_payment(*, payment: Payment):
                 "updated_at",
             ]
         )
+        notify_booking_confirmed(booking)
