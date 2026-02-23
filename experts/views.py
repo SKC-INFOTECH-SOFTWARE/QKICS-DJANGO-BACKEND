@@ -32,7 +32,10 @@ from .pagination import ExpertCursorPagination
 
 User = get_user_model()
 
-
+from notifications.services.events import (
+    notify_expert_application_approved,
+    notify_expert_application_rejected,
+)
 # -----------------------
 # Helpers
 # -----------------------
@@ -261,7 +264,7 @@ class AdminVerifyExpertView(APIView):
             profile.user.user_type = "expert"
             profile.user.save()
             profile.save()
-
+            notify_expert_application_approved(profile)
             return Response(
                 {"message": "Expert approved. Other applications auto-rejected."}
             )
@@ -269,6 +272,7 @@ class AdminVerifyExpertView(APIView):
         elif action == "reject":
             profile.application_status = "rejected"
             profile.save()
+            notify_expert_application_rejected(profile)
             return Response({"message": "Expert application rejected."})
 
         return Response({"error": "Invalid action"}, status=400)
