@@ -110,11 +110,13 @@ class MyDocumentDownloadsView(generics.ListAPIView):
 
     permission_classes = [IsAuthenticated]
     serializer_class = DocumentDownloadSerializer
+    pagination_class = DocumentCursorPagination
 
     def get_queryset(self):
         return (
             DocumentDownload.objects.select_related("document")
             .filter(user=self.request.user)
+            .order_by("-downloaded_at")
         )
 
 
