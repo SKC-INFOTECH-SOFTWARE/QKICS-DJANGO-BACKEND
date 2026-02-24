@@ -11,6 +11,7 @@ from .serializers import (
     DocumentListSerializer,
     DocumentDetailSerializer,
     DocumentDownloadSerializer,
+    UserDocumentCreateSerializer,
 )
 from .services.access import can_user_download_document
 from .pagination import DocumentCursorPagination
@@ -113,3 +114,18 @@ class MyDocumentDownloadsView(generics.ListAPIView):
             DocumentDownload.objects.select_related("document")
             .filter(user=self.request.user)
         )
+
+
+# =====================================================
+# USER DOCUMENT CREATE VIEW
+# =====================================================
+class UserDocumentCreateView(generics.CreateAPIView):
+    """
+    Allows authenticated users to upload FREE documents.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserDocumentCreateSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)

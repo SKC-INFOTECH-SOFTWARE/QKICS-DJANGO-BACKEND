@@ -6,6 +6,7 @@ from .views import (
     DocumentDetailView,
     DocumentDownloadView,
     MyDocumentDownloadsView,
+    UserDocumentCreateView,
 )
 
 urlpatterns = [
@@ -38,5 +39,16 @@ urlpatterns = [
         MyDocumentDownloadsView.as_view(),
         name="my-document-downloads",
     ),
+    # -----------------------------
+    # USER DOCUMENT UPLOAD
+    # -----------------------------
+    path(
+        "upload/",
+        UserDocumentCreateView.as_view(),
+        name="user-document-upload",
+    ),
+    
+    
     path("", include(admin_urls)),
+    
 ]

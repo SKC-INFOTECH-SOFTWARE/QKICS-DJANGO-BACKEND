@@ -45,7 +45,7 @@ class Document(models.Model):
         null=True,
         blank=True,
         related_name="uploaded_documents",
-        help_text="Admin who uploaded this document",
+        help_text="User who uploaded this document"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

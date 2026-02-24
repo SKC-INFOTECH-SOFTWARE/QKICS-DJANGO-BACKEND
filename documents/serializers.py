@@ -63,3 +63,29 @@ class DocumentDownloadSerializer(serializers.ModelSerializer):
             "access_type_snapshot",
             "downloaded_at",
         ]
+
+
+# =====================================================
+# USER DOCUMENT CREATE SERIALIZER
+# =====================================================
+class UserDocumentCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for normal users uploading documents.
+    Only FREE access_type allowed.
+    """
+
+    class Meta:
+        model = Document
+        fields = [
+            "title",
+            "description",
+            "file",
+            "access_type",
+        ]
+
+    def validate_access_type(self, value):
+        if value != Document.AccessType.FREE:
+            raise serializers.ValidationError(
+                "You can only upload FREE documents."
+            )
+        return value
