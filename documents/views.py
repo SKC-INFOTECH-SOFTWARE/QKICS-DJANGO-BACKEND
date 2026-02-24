@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status, generics
-
+from rest_framework import serializers
 from .models import Document, DocumentDownload
 from .serializers import (
     DocumentListSerializer,
@@ -15,7 +15,8 @@ from .serializers import (
 )
 from .services.access import can_user_download_document
 from .pagination import DocumentCursorPagination
-
+from django.utils import timezone
+from datetime import datetime
 
 # =====================================================
 # DOCUMENT LIST
@@ -120,12 +121,32 @@ class MyDocumentDownloadsView(generics.ListAPIView):
 # USER DOCUMENT CREATE VIEW
 # =====================================================
 class UserDocumentCreateView(generics.CreateAPIView):
-    """
-    Allows authenticated users to upload FREE documents.
-    """
-
     permission_classes = [IsAuthenticated]
     serializer_class = UserDocumentCreateSerializer
 
+    MONTHLY_UPLOAD_LIMIT = 10 
+
     def perform_create(self, serializer):
-        serializer.save(uploaded_by=self.request.user)
+        user = self.request.user
+
+        # Admin unlimited
+        if user.is_superuser:
+            serializer.save(uploaded_by=user)
+            return
+
+        # Calculate first day of current month
+        now = timezone.now()
+        first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Count user uploads this month
+        monthly_count = Document.objects.filter(
+            uploaded_by=user,
+            created_at__gte=first_day
+        ).count()
+
+        if monthly_count >= self.MONTHLY_UPLOAD_LIMIT:
+            raise serializers.ValidationError(
+                f"Monthly upload limit ({self.MONTHLY_UPLOAD_LIMIT}) reached."
+            )
+
+        serializer.save(uploaded_by=user)
