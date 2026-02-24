@@ -34,7 +34,8 @@ INSTALLED_APPS = [
     "corsheaders",
     "channels",
     "whitenoise",
-
+    "django_filters",
+    
     # Local apps
     "users",
     "experts",

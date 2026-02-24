@@ -19,6 +19,9 @@ from django.utils import timezone
 from datetime import datetime
 from rest_framework.exceptions import ValidationError
 from .models import DocumentPlatformSettings
+from django_filters.rest_framework import DjangoFilterBackend
+
+
 # =====================================================
 # DOCUMENT LIST
 # ===================================================
@@ -31,12 +34,11 @@ class DocumentListView(generics.ListAPIView):
     serializer_class = DocumentListSerializer
     pagination_class = DocumentCursorPagination
 
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["access_type"]
+
     def get_queryset(self):
-        return (
-            Document.objects
-            .filter(is_active=True)
-            .order_by("-created_at")
-        )
+        return Document.objects.filter(is_active=True).order_by("-created_at")
 
 
 # =====================================================
@@ -138,13 +140,10 @@ class UserDocumentCreateView(generics.CreateAPIView):
         settings_obj, _ = DocumentPlatformSettings.objects.get_or_create(id=1)
 
         now = timezone.now()
-        first_day = now.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         monthly_count = Document.objects.filter(
-            uploaded_by=user,
-            created_at__gte=first_day
+            uploaded_by=user, created_at__gte=first_day
         ).count()
 
         if monthly_count >= settings_obj.monthly_upload_limit:
