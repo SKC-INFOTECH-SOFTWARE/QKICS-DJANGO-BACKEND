@@ -3,9 +3,8 @@ from django.db.models import Count
 
 from documents.models import Document, DocumentDownload
 from subscriptions.services.access import is_user_premium
+from documents.models import DocumentPlatformSettings
 
-
-MONTHLY_PREMIUM_DOWNLOAD_LIMIT = 5
 
 
 def can_user_download_document(user, document):
@@ -71,4 +70,6 @@ def _can_download_more_this_month(user):
         access_type_snapshot=Document.AccessType.PREMIUM,
     ).count()
 
-    return downloads_this_month < MONTHLY_PREMIUM_DOWNLOAD_LIMIT
+    settings_obj, _ = DocumentPlatformSettings.objects.get_or_create(id=1)
+
+    return downloads_this_month < settings_obj.monthly_download_limit
