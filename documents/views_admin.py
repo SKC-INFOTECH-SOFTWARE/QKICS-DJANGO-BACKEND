@@ -24,11 +24,7 @@ class AdminDocumentListView(generics.ListAPIView):
     pagination_class = DocumentCursorPagination
 
     def get_queryset(self):
-        return (
-            Document.objects
-            .select_related("uploaded_by")
-            .order_by("-created_at")
-        )
+        return Document.objects.select_related("uploaded_by").order_by("-created_at")
 
 
 class AdminDocumentUpdateView(generics.UpdateAPIView):
@@ -64,3 +60,32 @@ class AdminDocumentToggleStatusView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+# ===============================================
+# DOCUMENT PLATFORM SETTINGS VIEW
+# ===============================================
+from .models import DocumentPlatformSettings
+from .serializers_admin import DocumentPlatformSettingsSerializer
+
+
+class AdminDocumentPlatformSettingsView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        settings_obj, _ = DocumentPlatformSettings.objects.get_or_create(id=1)
+        serializer = DocumentPlatformSettingsSerializer(settings_obj)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        settings_obj, _ = DocumentPlatformSettings.objects.get_or_create(id=1)
+
+        serializer = DocumentPlatformSettingsSerializer(
+            settings_obj, data=request.data, partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

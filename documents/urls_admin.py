@@ -4,6 +4,7 @@ from .views_admin import (
     AdminDocumentListView,
     AdminDocumentUpdateView,
     AdminDocumentToggleStatusView,
+    AdminDocumentPlatformSettingsView,
 )
 
 urlpatterns = [
@@ -26,5 +27,10 @@ urlpatterns = [
         "admin/<uuid:uuid>/toggle-status/",
         AdminDocumentToggleStatusView.as_view(),
         name="admin-document-toggle-status",
+    ),
+    path(
+        "admin/settings/",
+        AdminDocumentPlatformSettingsView.as_view(),
+        name="admin-document-platform-settings",
     ),
 ]

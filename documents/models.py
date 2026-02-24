@@ -45,7 +45,7 @@ class Document(models.Model):
         null=True,
         blank=True,
         related_name="uploaded_documents",
-        help_text="User who uploaded this document"
+        help_text="User who uploaded this document",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -95,6 +95,7 @@ class DocumentDownload(models.Model):
 
     downloaded_at = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [
@@ -104,3 +105,21 @@ class DocumentDownload(models.Model):
 
     def __str__(self):
         return f"{self.user} downloaded {self.document}"
+
+
+# =====================================================
+# Document Platform Settings
+# =====================================================
+class DocumentPlatformSettings(models.Model):
+    """
+    Stores global document limits controlled by admin.
+    Only ONE row should exist.
+    """
+
+    monthly_upload_limit = models.PositiveIntegerField(default=5)
+    monthly_download_limit = models.PositiveIntegerField(default=20)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "Document Platform Settings"

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document
+from .models import Document, DocumentPlatformSettings
 
 
 class AdminDocumentSerializer(serializers.ModelSerializer):
@@ -20,3 +20,15 @@ class AdminDocumentSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["uuid", "created_at", "updated_at"]
+
+
+class DocumentPlatformSettingsSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = DocumentPlatformSettings
+        fields = [
+            "monthly_upload_limit",
+            "monthly_download_limit",
+            "updated_at",
+        ]
+        read_only_fields = ["updated_at"]
