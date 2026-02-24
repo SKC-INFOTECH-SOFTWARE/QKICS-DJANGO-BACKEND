@@ -47,8 +47,5 @@ urlpatterns = [
         UserDocumentCreateView.as_view(),
         name="user-document-upload",
     ),
-    
-    
     path("", include(admin_urls)),
-    
 ]

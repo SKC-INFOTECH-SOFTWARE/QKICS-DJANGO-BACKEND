@@ -17,7 +17,8 @@ from .services.access import can_user_download_document
 from .pagination import DocumentCursorPagination
 from django.utils import timezone
 from datetime import datetime
-
+from rest_framework.exceptions import ValidationError
+from .models import DocumentPlatformSettings
 # =====================================================
 # DOCUMENT LIST
 # ===================================================
@@ -124,8 +125,6 @@ class UserDocumentCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserDocumentCreateSerializer
 
-    MONTHLY_UPLOAD_LIMIT = 10 
-
     def perform_create(self, serializer):
         user = self.request.user
 
@@ -134,19 +133,21 @@ class UserDocumentCreateView(generics.CreateAPIView):
             serializer.save(uploaded_by=user)
             return
 
-        # Calculate first day of current month
-        now = timezone.now()
-        first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        settings_obj, _ = DocumentPlatformSettings.objects.get_or_create(id=1)
 
-        # Count user uploads this month
+        now = timezone.now()
+        first_day = now.replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+
         monthly_count = Document.objects.filter(
             uploaded_by=user,
             created_at__gte=first_day
         ).count()
 
-        if monthly_count >= self.MONTHLY_UPLOAD_LIMIT:
-            raise serializers.ValidationError(
-                f"Monthly upload limit ({self.MONTHLY_UPLOAD_LIMIT}) reached."
+        if monthly_count >= settings_obj.monthly_upload_limit:
+            raise ValidationError(
+                f"Monthly upload limit ({settings_obj.monthly_upload_limit}) reached."
             )
 
         serializer.save(uploaded_by=user)
