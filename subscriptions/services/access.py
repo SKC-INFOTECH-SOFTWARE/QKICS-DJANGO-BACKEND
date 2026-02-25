@@ -2,10 +2,6 @@ from django.utils import timezone
 from subscriptions.models import UserSubscription
 
 
-# ============================================================
-# CORE HELPERS
-# ============================================================
-
 def get_active_subscription(user):
     """
     Returns the active subscription for a user, or None.
@@ -35,24 +31,6 @@ def is_user_premium(user):
     return get_active_subscription(user) is not None
 
 
-# ============================================================
-# DOCUMENT ACCESS
-# ============================================================
-
-def can_download_premium_doc(user):
-    """
-    Check if user can download a premium document.
-    """
-    sub = get_active_subscription(user)
-    if not sub:
-        return False
-
-    return (
-        sub.premium_docs_used_this_month
-        < sub.plan.premium_doc_limit_per_month
-    )
-
-
 def remaining_premium_docs(user):
     """
     Returns remaining premium document downloads for the month.
@@ -68,10 +46,6 @@ def remaining_premium_docs(user):
     return max(0, remaining)
 
 
-# ============================================================
-# CONSULTATION BENEFITS
-# ============================================================
-
 def can_use_free_consultation(user):
     """
     Premium users get one free consultation.
@@ -82,10 +56,6 @@ def can_use_free_consultation(user):
 
     return not sub.free_consultation_used
 
-
-# ============================================================
-# CHAT BENEFITS
-# ============================================================
 
 def can_chat_with_expert(user):
     """
