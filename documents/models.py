@@ -1,8 +1,20 @@
+import os
 import uuid
 from django.db import models
 from django.conf import settings
 
 User = settings.AUTH_USER_MODEL
+
+
+def document_upload_path(instance, filename):
+    """
+    Generate unique upload path for each document file.
+    """
+
+    ext = filename.split(".")[-1]
+    unique_filename = f"{uuid.uuid4()}.{ext}"
+
+    return os.path.join("documents", unique_filename)
 
 
 # =====================================================
@@ -25,7 +37,7 @@ class Document(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
 
-    file = models.FileField(upload_to="documents/")
+    file = models.FileField(upload_to=document_upload_path)
 
     access_type = models.CharField(
         max_length=10,
