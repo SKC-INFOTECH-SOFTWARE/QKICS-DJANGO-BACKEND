@@ -35,26 +35,35 @@ class DocumentAdmin(admin.ModelAdmin):
     ordering = ("-created_at",)
 
     fieldsets = (
-        ("Document Info", {
-            "fields": (
-                "title",
-                "description",
-                "file",
-            )
-        }),
-        ("Access Control", {
-            "fields": (
-                "access_type",
-                "is_active",
-            )
-        }),
-        ("Audit Info", {
-            "fields": (
-                "uploaded_by",
-                "created_at",
-                "updated_at",
-            )
-        }),
+        (
+            "Document Info",
+            {
+                "fields": (
+                    "title",
+                    "description",
+                    "file",
+                )
+            },
+        ),
+        (
+            "Access Control",
+            {
+                "fields": (
+                    "access_type",
+                    "is_active",
+                )
+            },
+        ),
+        (
+            "Audit Info",
+            {
+                "fields": (
+                    "uploaded_by",
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
     )
 
     def save_model(self, request, obj, form, change):

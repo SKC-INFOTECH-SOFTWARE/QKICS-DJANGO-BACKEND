@@ -85,7 +85,5 @@ class UserDocumentCreateSerializer(serializers.ModelSerializer):
 
     def validate_access_type(self, value):
         if value != Document.AccessType.FREE:
-            raise serializers.ValidationError(
-                "You can only upload FREE documents."
-            )
+            raise serializers.ValidationError("You can only upload FREE documents.")
         return value

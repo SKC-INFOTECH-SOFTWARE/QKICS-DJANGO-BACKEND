@@ -6,7 +6,6 @@ from subscriptions.services.access import is_user_premium
 from documents.models import DocumentPlatformSettings
 
 
-
 def can_user_download_document(user, document):
     """
     Master access check for document download.
@@ -53,7 +52,6 @@ def can_user_download_document(user, document):
         return False, "Payment required (not enabled yet)"
 
     return False, "Access denied"
-
 
 
 def _can_download_more_this_month(user):
