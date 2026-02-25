@@ -34,10 +34,10 @@ class NotificationListView(APIView):
         )
 
         if result is None:
-            return Response(
-                {"detail": "Notification service unavailable."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+            result = {
+                "notifications": [],
+                "count": 0,
+            }
 
         return Response(result, status=status.HTTP_200_OK)
 
@@ -54,9 +54,10 @@ class NotificationMarkReadView(APIView):
         result = mark_notification_read(notification_id=notification_id)
 
         if result is None:
+            # Do not break frontend
             return Response(
-                {"detail": "Notification service unavailable."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {"detail": "Notification service temporarily unavailable."},
+                status=status.HTTP_200_OK,
             )
 
         return Response(result, status=status.HTTP_200_OK)
@@ -101,8 +102,8 @@ class PushTokenRegisterView(APIView):
 
         if result is None:
             return Response(
-                {"detail": "Notification service unavailable."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {"detail": "Push token registration failed, try later."},
+                status=status.HTTP_200_OK,
             )
 
         return Response(result, status=status.HTTP_200_OK)
@@ -132,8 +133,8 @@ class PushTokenUnregisterView(APIView):
 
         if result is None:
             return Response(
-                {"detail": "Notification service unavailable."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {"detail": "Push token unregister failed, try later."},
+                status=status.HTTP_200_OK,
             )
 
         return Response(result, status=status.HTTP_200_OK)

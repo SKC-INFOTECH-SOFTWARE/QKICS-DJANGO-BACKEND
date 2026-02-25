@@ -71,9 +71,15 @@ def send_notification(
             f"{NOTIFICATION_SERVICE_URL}/api/notifications/send",
             json=payload,
             headers=_headers(),
-            timeout=5,
+            timeout=(2, 3),
         )
-        response.raise_for_status()
+        if not response.ok:
+            logger.error(
+                "Notification service returned %s: %s",
+                response.status_code,
+                response.text,
+            )
+            return None
         return response.json()
     except requests.exceptions.Timeout:
         logger.error("Notification service timed out for event: %s", event)
@@ -96,9 +102,15 @@ def get_notifications(*, user_id: str, channel: str = "IN_APP", limit: int = 20)
             f"{NOTIFICATION_SERVICE_URL}/api/notifications",
             headers=_headers(),
             params={"userId": str(user_id), "channel": channel, "limit": limit},
-            timeout=5,
+            timeout=(2, 3),
         )
-        response.raise_for_status()
+        if not response.ok:
+            logger.error(
+                "Notification service returned %s: %s",
+                response.status_code,
+                response.text,
+            )
+            return None
         return response.json()
     except requests.exceptions.RequestException as e:
         logger.error("Failed to fetch notifications for user %s: %s", user_id, str(e))
@@ -116,9 +128,15 @@ def mark_notification_read(*, notification_id: str):
         response = requests.patch(
             f"{NOTIFICATION_SERVICE_URL}/api/notifications/{notification_id}/read",
             headers=_headers(),
-            timeout=5,
+            timeout=(2, 3),
         )
-        response.raise_for_status()
+        if not response.ok:
+            logger.error(
+                "Notification service returned %s: %s",
+                response.status_code,
+                response.text,
+            )
+            return None
         return response.json()
     except requests.exceptions.RequestException as e:
         logger.error(
@@ -152,9 +170,15 @@ def register_push_token(
             f"{NOTIFICATION_SERVICE_URL}/api/push-tokens/register",
             json=payload,
             headers=_headers(),
-            timeout=5,
+            timeout=(2, 3),
         )
-        response.raise_for_status()
+        if not response.ok:
+            logger.error(
+                "Notification service returned %s: %s",
+                response.status_code,
+                response.text,
+            )
+            return None
         return response.json()
     except requests.exceptions.RequestException as e:
         logger.error("Failed to register push token for user %s: %s", user_id, str(e))
@@ -173,9 +197,15 @@ def unregister_push_token(*, token: str):
             f"{NOTIFICATION_SERVICE_URL}/api/push-tokens/unregister",
             json={"token": token},
             headers=_headers(),
-            timeout=5,
+            timeout=(2, 3),
         )
-        response.raise_for_status()
+        if not response.ok:
+            logger.error(
+                "Notification service returned %s: %s",
+                response.status_code,
+                response.text,
+            )
+            return None
         return response.json()
     except requests.exceptions.RequestException as e:
         logger.error("Failed to unregister push token: %s", str(e))
