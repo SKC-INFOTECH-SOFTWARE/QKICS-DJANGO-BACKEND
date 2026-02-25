@@ -48,8 +48,6 @@ class UserSubscription(models.Model):
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
 
-    # Usage tracking
-    premium_docs_used_this_month = models.PositiveIntegerField(default=0)
     chats_used_this_month = models.PositiveIntegerField(default=0)
     free_consultation_used = models.BooleanField(default=False)
 

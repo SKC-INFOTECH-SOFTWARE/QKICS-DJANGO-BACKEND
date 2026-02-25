@@ -43,7 +43,6 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
         "start_date",
         "end_date",
         "is_active",
-        "premium_docs_used_this_month",
         "chats_used_this_month",
         "free_consultation_used",
         "created_at",
