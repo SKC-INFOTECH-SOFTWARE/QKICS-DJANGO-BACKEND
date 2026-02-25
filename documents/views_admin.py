@@ -8,6 +8,8 @@ from .models import Document
 from .serializers_admin import AdminDocumentSerializer
 
 from .pagination import DocumentCursorPagination
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 
 
 class AdminDocumentCreateView(generics.CreateAPIView):
@@ -22,6 +24,28 @@ class AdminDocumentListView(generics.ListAPIView):
     permission_classes = [IsAdmin]
     serializer_class = AdminDocumentSerializer
     pagination_class = DocumentCursorPagination
+
+    filter_backends = [
+        DjangoFilterBackend,
+        SearchFilter,
+        OrderingFilter,
+    ]
+
+    filterset_fields = [
+        "access_type",
+        "is_active",
+        "uploaded_by",
+    ]
+
+    search_fields = [
+        "title",
+        "description",
+    ]
+
+    ordering_fields = [
+        "created_at",
+        "access_type",
+    ]
 
     def get_queryset(self):
         return Document.objects.select_related("uploaded_by").order_by("-created_at")
