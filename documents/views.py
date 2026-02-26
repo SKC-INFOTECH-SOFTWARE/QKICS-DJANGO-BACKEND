@@ -23,6 +23,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .services.limits import enforce_upload_limit, enforce_download_limit
 from rest_framework.filters import SearchFilter, OrderingFilter
 
+
 # =====================================================
 # DOCUMENT LIST
 # ===================================================
@@ -61,7 +62,7 @@ class DocumentListView(generics.ListAPIView):
 
     def get_queryset(self):
         return Document.objects.filter(is_active=True)
-    
+
 
 # =====================================================
 # DOCUMENT DETAIL VIEW
@@ -163,3 +164,78 @@ class UserDocumentCreateView(generics.CreateAPIView):
             raise ValidationError(str(e))
 
         serializer.save(uploaded_by=user)
+
+
+class MyUploadedDocumentsView(generics.ListAPIView):
+    """
+    Lists documents uploaded by the authenticated user.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = DocumentListSerializer
+    pagination_class = DocumentCursorPagination
+
+    filter_backends = [
+        DjangoFilterBackend,
+        SearchFilter,
+        OrderingFilter,
+    ]
+
+    filterset_fields = [
+        "access_type",
+        "is_active",
+    ]
+
+    search_fields = [
+        "title",
+        "description",
+    ]
+
+    ordering_fields = [
+        "created_at",
+    ]
+
+    ordering = ["-created_at"]
+
+    def get_queryset(self):
+        return Document.objects.filter(uploaded_by=self.request.user)
+
+
+class UserDocumentUpdateView(generics.UpdateAPIView):
+    """
+    Allows user to update their own document.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserDocumentCreateSerializer
+    lookup_field = "uuid"
+
+    def get_queryset(self):
+        return Document.objects.filter(uploaded_by=self.request.user)
+
+
+class UserDocumentToggleStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, uuid):
+
+        document = get_object_or_404(Document, uuid=uuid, uploaded_by=request.user)
+
+        is_active = request.data.get("is_active")
+
+        if is_active is None:
+            return Response(
+                {"detail": "is_active field is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        document.is_active = is_active
+        document.save(update_fields=["is_active"])
+
+        return Response(
+            {
+                "uuid": document.uuid,
+                "is_active": document.is_active,
+                "message": "Document status updated",
+            }
+        )

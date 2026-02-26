@@ -7,6 +7,9 @@ from .views import (
     DocumentDownloadView,
     MyDocumentDownloadsView,
     UserDocumentCreateView,
+    MyUploadedDocumentsView,
+    UserDocumentUpdateView,
+    UserDocumentToggleStatusView,
 )
 
 urlpatterns = [
@@ -48,4 +51,19 @@ urlpatterns = [
         name="user-document-upload",
     ),
     path("", include(admin_urls)),
+    path(
+        "my-documents/",
+        MyUploadedDocumentsView.as_view(),
+        name="my-uploaded-documents",
+    ),
+    path(
+        "my-documents/<uuid:uuid>/update/",
+        UserDocumentUpdateView.as_view(),
+        name="user-document-update",
+    ),
+    path(
+        "my-documents/<uuid:uuid>/toggle-status/",
+        UserDocumentToggleStatusView.as_view(),
+        name="user-document-toggle-status",
+    ),
 ]
