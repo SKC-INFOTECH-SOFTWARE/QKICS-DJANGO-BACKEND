@@ -2,23 +2,12 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
-from PIL import Image, ImageOps
-from io import BytesIO
-from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-import secrets
+import uuid
+import mimetypes
+from PIL import Image
 
 User = get_user_model()
-
-
-def post_image_upload_path(instance, filename):
-    ext = filename.split(".")[-1].lower()
-
-    while True:
-        unique_name = f"{secrets.token_hex(30)}.jpg"
-        full_path = f"community/posts/{unique_name}"
-        if not default_storage.exists(full_path):
-            return full_path
 
 
 # ---------------------------
@@ -70,8 +59,6 @@ class Post(models.Model):
         blank=True,
         help_text="Visible only to premium users",
     )
-
-    image = models.ImageField(upload_to=post_image_upload_path, blank=True, null=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name="posts")
     knowledge_hub = models.BooleanField(
         default=False,
@@ -83,6 +70,10 @@ class Post(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["knowledge_hub"]),
+            models.Index(fields=["author", "created_at"]),
+        ]
 
     def __str__(self):
         return f"{self.author.username} - {self.title or 'Post'} ({self.id})"
@@ -97,59 +88,6 @@ class Post(models.Model):
 
     def top_level_comments(self):
         return self.comments.filter(parent__isnull=True)
-
-    # IMAGE HANDLING (UNCHANGED)
-    def delete(self, *args, **kwargs):
-        if self.image and self.image.name:
-            if default_storage.exists(self.image.path):
-                default_storage.delete(self.image.path)
-        super().delete(*args, **kwargs)
-
-    def save(self, *args, **kwargs):
-        old_image_path = None
-        new_image_uploaded = False
-
-        if self.pk:
-            old_post = Post.objects.filter(pk=self.pk).first()
-            if old_post and old_post.image != self.image:
-                old_image_path = old_post.image.path if old_post.image else None
-                new_image_uploaded = True
-        else:
-            if self.image:
-                new_image_uploaded = True
-
-        if not new_image_uploaded:
-            return super().save(*args, **kwargs)
-
-        if new_image_uploaded and not self.image:
-            if old_image_path and default_storage.exists(old_image_path):
-                default_storage.delete(old_image_path)
-            return super().save(*args, **kwargs)
-
-        img = Image.open(self.image)
-        img = ImageOps.exif_transpose(img)
-
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-
-        buffer = BytesIO()
-        quality = 85
-
-        while True:
-            buffer.seek(0)
-            buffer.truncate()
-            img.save(buffer, format="JPEG", quality=quality)
-            if buffer.tell() / 1024 <= 200 or quality <= 40:
-                break
-            quality -= 5
-
-        new_name = f"{secrets.token_hex(30)}.jpg"
-        self.image = ContentFile(buffer.getvalue(), name=new_name)
-
-        super().save(*args, **kwargs)
-
-        if old_image_path and default_storage.exists(old_image_path):
-            default_storage.delete(old_image_path)
 
 
 # ---------------------------
@@ -264,3 +202,104 @@ class Like(models.Model):
     def __str__(self):
         target = self.post or self.comment
         return f"{self.user} likes {target}"
+
+
+# ====================================
+# POST MEDIA MODEL
+# ====================================
+
+
+def post_media_upload_path(instance, filename):
+    ext = filename.split(".")[-1].lower()
+    unique_name = f"{uuid.uuid4().hex}.{ext}"
+    return f"community/post_media/{unique_name}"
+
+
+class PostMedia(models.Model):
+    IMAGE = "image"
+    VIDEO = "video"
+
+    MEDIA_TYPE_CHOICES = [
+        (IMAGE, "Image"),
+        (VIDEO, "Video"),
+    ]
+
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name="media",
+        db_index=True,
+    )
+
+    media_type = models.CharField(
+        max_length=10,
+        choices=MEDIA_TYPE_CHOICES,
+        editable=False,
+    )
+
+    file = models.FileField(upload_to=post_media_upload_path)
+
+    order = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["post", "order"], name="unique_post_media_order"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.media_type} for Post {self.post.id}"
+
+    def clean(self):
+        if not self.file:
+            raise ValidationError("File is required.")
+
+        # File size validation (50MB)
+        max_size = 50 * 1024 * 1024
+        if self.file.size > max_size:
+            raise ValidationError("File size exceeds 50MB limit.")
+
+        mime_type, _ = mimetypes.guess_type(self.file.name)
+
+        if not mime_type:
+            raise ValidationError("Could not determine file type.")
+
+        # IMAGE VALIDATION
+        if mime_type.startswith("image"):
+            try:
+                img = Image.open(self.file)
+                img.verify()
+                img.close()
+                self.file.seek(0)
+                self.media_type = self.IMAGE
+            except (OSError, SyntaxError):
+                raise ValidationError("Invalid image file.")
+
+        # VIDEO VALIDATION
+        elif mime_type.startswith("video"):
+            allowed_video_types = [
+                "video/mp4",
+                "video/quicktime",
+                "video/x-msvideo",
+            ]
+
+            if mime_type not in allowed_video_types:
+                raise ValidationError("Unsupported video format.")
+
+            self.media_type = self.VIDEO
+
+        else:
+            raise ValidationError("Only image and video files are allowed.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.file:
+            self.file.delete(save=False)
+        super().delete(*args, **kwargs)
