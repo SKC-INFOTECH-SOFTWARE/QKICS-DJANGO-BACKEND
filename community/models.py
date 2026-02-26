@@ -73,7 +73,11 @@ class Post(models.Model):
 
     image = models.ImageField(upload_to=post_image_upload_path, blank=True, null=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name="posts")
-
+    knowledge_hub = models.BooleanField(
+        default=False,
+        help_text="True = Knowledge Hub post (Idea/Structured knowledge post)",
+        db_index=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

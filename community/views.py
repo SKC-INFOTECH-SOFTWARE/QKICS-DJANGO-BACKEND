@@ -3,7 +3,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import (
     IsAuthenticated,
-    AllowAny,
     IsAuthenticatedOrReadOnly,
 )
 from django.shortcuts import get_object_or_404
@@ -38,6 +37,8 @@ from notifications.services.events import (
     notify_post_commented,
     notify_comment_replied,
 )
+
+
 # ---------------------------
 # TAG LIST + CREATE (Admin Only for Create)
 # ---------------------------
@@ -479,3 +480,21 @@ class SearchPostsView(APIView):
             posts, many=True, context={"request": request}
         )
         return Response(serializer.data)
+
+
+# ---------------------------
+# KNOWLEDGE HUB POSTS
+# ---------------------------
+class KnowledgeHubPostView(ListAPIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = PostSerializer
+    pagination_class = PostCursorPagination
+
+    def get_queryset(self):
+        return (
+            Post.objects.filter(knowledge_hub=True)
+            .select_related("author")
+            .prefetch_related("tags", "post_likes")
+            .annotate(total_comments_count=Count("comments"))
+            .order_by("-created_at")
+        )

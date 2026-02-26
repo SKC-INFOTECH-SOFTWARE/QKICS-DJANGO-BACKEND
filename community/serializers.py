@@ -162,6 +162,7 @@ class PostSerializer(serializers.ModelSerializer):
             "content",
             "image",
             "tags",
+            "knowledge_hub",
             "total_likes",
             "total_comments",
             "is_liked",
@@ -213,6 +214,7 @@ class PostSearchSerializer(serializers.ModelSerializer):
             "content",
             "image",
             "tags",
+            "knowledge_hub",
             "is_liked",
             "total_likes",
             "total_comments",
@@ -252,6 +254,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
             "full_content",  #
             "image",
             "tags",
+            "knowledge_hub",
         ]
 
     # Existing validations can stay exactly as you had them

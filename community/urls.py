@@ -23,6 +23,9 @@ from .views import (
     
     # SEARCH
     SearchPostsView,
+    
+    # KNOWLEDGE HUB
+    KnowledgeHubPostView,
 )
 
 urlpatterns = [
@@ -62,5 +65,7 @@ urlpatterns = [
     # POST SEARCH
     # ---------------------------
     path("search/", SearchPostsView.as_view(), name="search-posts"),
+    
+    path("posts/knowledge-hub/", KnowledgeHubPostView.as_view(), name="knowledge-hub-posts"),
 
 ]
