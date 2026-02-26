@@ -71,7 +71,7 @@ def send_notification(
             f"{NOTIFICATION_SERVICE_URL}/api/notifications/send",
             json=payload,
             headers=_headers(),
-            timeout=(2, 3),
+            timeout=10
         )
         if not response.ok:
             logger.error(
@@ -102,7 +102,7 @@ def get_notifications(*, user_id: str, channel: str = "IN_APP", limit: int = 20)
             f"{NOTIFICATION_SERVICE_URL}/api/notifications",
             headers=_headers(),
             params={"userId": str(user_id), "channel": channel, "limit": limit},
-            timeout=(2, 3),
+            timeout=10
         )
         if not response.ok:
             logger.error(
@@ -128,7 +128,7 @@ def mark_notification_read(*, notification_id: str):
         response = requests.patch(
             f"{NOTIFICATION_SERVICE_URL}/api/notifications/{notification_id}/read",
             headers=_headers(),
-            timeout=(2, 3),
+            timeout=10
         )
         if not response.ok:
             logger.error(
@@ -170,7 +170,7 @@ def register_push_token(
             f"{NOTIFICATION_SERVICE_URL}/api/push-tokens/register",
             json=payload,
             headers=_headers(),
-            timeout=(2, 3),
+            timeout=10
         )
         if not response.ok:
             logger.error(
@@ -197,7 +197,7 @@ def unregister_push_token(*, token: str):
             f"{NOTIFICATION_SERVICE_URL}/api/push-tokens/unregister",
             json={"token": token},
             headers=_headers(),
-            timeout=(2, 3),
+            timeout=10
         )
         if not response.ok:
             logger.error(
