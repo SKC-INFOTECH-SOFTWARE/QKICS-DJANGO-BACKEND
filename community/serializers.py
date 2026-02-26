@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-
-from .models import Post, Comment, Tag
+from django.db import transaction
+from .models import Post, Comment, Tag, PostMedia
 from subscriptions.services.access import is_user_premium  #  (subscription)
 
 User = get_user_model()
@@ -99,7 +99,9 @@ class CommentSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
     is_liked = serializers.SerializerMethodField()
-    total_replies = serializers.IntegerField(source="replies.count", read_only=True)
+    total_replies = serializers.IntegerField(
+        source="total_replies_count", read_only=True
+    )
 
     #  (subscription-based rendering)
     content = serializers.SerializerMethodField()
@@ -139,11 +141,23 @@ class CommentSerializer(serializers.ModelSerializer):
 # POST SERIALIZER
 # (ONLY content rendering changed for subscription)
 # =====================================================
+class PostMediaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PostMedia
+        fields = [
+            "id",
+            "media_type",
+            "file",
+            "order",
+            "created_at",
+        ]
+        read_only_fields = ["id", "media_type", "created_at"]
 
 
 class PostSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    media = PostMediaSerializer(many=True, read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
     total_comments = serializers.IntegerField(
         source="total_comments_count", read_only=True
@@ -160,7 +174,7 @@ class PostSerializer(serializers.ModelSerializer):
             "author",
             "title",
             "content",
-            "image",
+            "media",
             "tags",
             "knowledge_hub",
             "total_likes",
@@ -198,6 +212,7 @@ class PostSerializer(serializers.ModelSerializer):
 class PostSearchSerializer(serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    media = PostMediaSerializer(many=True, read_only=True)
     total_likes = serializers.IntegerField(read_only=True)
     total_comments = serializers.IntegerField(
         source="total_comments_count", read_only=True
@@ -212,7 +227,7 @@ class PostSearchSerializer(serializers.ModelSerializer):
             "author",
             "title",
             "content",
-            "image",
+            "media",
             "tags",
             "knowledge_hub",
             "is_liked",
@@ -246,18 +261,21 @@ class PostSearchSerializer(serializers.ModelSerializer):
 
 
 class PostCreateSerializer(serializers.ModelSerializer):
+    media_files = serializers.ListField(
+        child=serializers.FileField(), write_only=True, required=False
+    )
+
     class Meta:
         model = Post
         fields = [
             "title",
-            "preview_content",  #
-            "full_content",  #
-            "image",
+            "preview_content",
+            "full_content",
             "tags",
             "knowledge_hub",
+            "media_files",
         ]
 
-    # Existing validations can stay exactly as you had them
     def validate(self, attrs):
         if not attrs.get("preview_content"):
             raise serializers.ValidationError(
@@ -268,6 +286,26 @@ class PostCreateSerializer(serializers.ModelSerializer):
                 {"full_content": "Full content is required"}
             )
         return attrs
+
+    def validate_media_files(self, files):
+        if len(files) > 10:
+            raise serializers.ValidationError("Maximum 10 files allowed per post.")
+        return files
+
+    def create(self, validated_data):
+        media_files = validated_data.pop("media_files", [])
+        tags = validated_data.pop("tags", [])
+
+        with transaction.atomic():
+            post = Post.objects.create(**validated_data)
+
+            if tags:
+                post.tags.set(tags)
+
+            for index, file in enumerate(media_files):
+                PostMedia.objects.create(post=post, file=file, order=index)
+
+        return post
 
 
 class CommentCreateSerializer(serializers.ModelSerializer):
