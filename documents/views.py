@@ -21,7 +21,7 @@ from rest_framework.exceptions import ValidationError
 from .models import DocumentPlatformSettings
 from django_filters.rest_framework import DjangoFilterBackend
 from .services.limits import enforce_upload_limit, enforce_download_limit
-
+from rest_framework.filters import SearchFilter, OrderingFilter
 
 # =====================================================
 # DOCUMENT LIST
@@ -29,18 +29,39 @@ from .services.limits import enforce_upload_limit, enforce_download_limit
 class DocumentListView(generics.ListAPIView):
     """
     Lists all active documents (Cursor paginated).
+    Supports filtering, searching and ordering.
     """
 
     permission_classes = [AllowAny]
     serializer_class = DocumentListSerializer
     pagination_class = DocumentCursorPagination
 
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["access_type"]
+    filter_backends = [
+        DjangoFilterBackend,
+        SearchFilter,
+        OrderingFilter,
+    ]
+
+    filterset_fields = [
+        "access_type",
+        "uploaded_by",
+    ]
+
+    search_fields = [
+        "title",
+        "description",
+    ]
+
+    ordering_fields = [
+        "created_at",
+        "access_type",
+    ]
+
+    ordering = ["-created_at"]
 
     def get_queryset(self):
-        return Document.objects.filter(is_active=True).order_by("-created_at")
-
+        return Document.objects.filter(is_active=True)
+    
 
 # =====================================================
 # DOCUMENT DETAIL VIEW
