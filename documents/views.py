@@ -5,7 +5,6 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status, generics
-from rest_framework import serializers
 from .models import Document, DocumentDownload
 from .serializers import (
     DocumentListSerializer,
@@ -16,10 +15,7 @@ from .serializers import (
 )
 from .services.access import can_user_download_document
 from .pagination import DocumentCursorPagination
-from django.utils import timezone
-from datetime import datetime
 from rest_framework.exceptions import ValidationError
-from .models import DocumentPlatformSettings
 from django_filters.rest_framework import DjangoFilterBackend
 from .services.limits import enforce_upload_limit, enforce_download_limit
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -46,7 +42,6 @@ class DocumentListView(generics.ListAPIView):
 
     filterset_fields = [
         "access_type",
-        "uploaded_by",
     ]
 
     search_fields = [
@@ -199,7 +194,9 @@ class MyUploadedDocumentsView(generics.ListAPIView):
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        return Document.objects.filter(uploaded_by=self.request.user)
+        return Document.objects.filter(uploaded_by=self.request.user).select_related(
+            "uploaded_by"
+        )
 
 
 class UserDocumentUpdateView(generics.UpdateAPIView):
