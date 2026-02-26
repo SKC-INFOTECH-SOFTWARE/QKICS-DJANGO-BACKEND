@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .permissions import IsAdmin
 from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework.generics import ListAPIView
 from django.db.models import Q
@@ -16,7 +17,7 @@ from .serializers import (
     LogoutSerializer,
 )
 from users.pagination import UserSearchCursorPagination
-from rest_framework_simplejwt.tokens import RefreshToken
+
 
 # Public Profile access includes ---------------------------------------
 from experts.models import ExpertProfile
@@ -31,6 +32,7 @@ from django.shortcuts import get_object_or_404
 
 # ------------------------------------------------------------------------
 from notifications.services.client import unregister_push_token
+
 
 # ────────────────────── REGISTER API ──────────────────────
 class RegisterAPIView(APIView):
@@ -82,19 +84,11 @@ class LoginAPIView(APIView):
                     "last_name": user.last_name,
                 },
                 "access": str(refresh.access_token),
+                "refresh": str(refresh),
             },
             status=status.HTTP_200_OK,
         )
 
-        response.set_cookie(
-            key="refresh_token",
-            value=str(refresh),
-            httponly=True,
-            secure=False,
-            samesite="Lax",
-            max_age=30 * 24 * 60 * 60,
-            path="/",
-        )
         return response
 
 
@@ -242,7 +236,7 @@ class LogoutAPIView(APIView):
             push_token = request.data.get("pushToken")
             if push_token:
                 unregister_push_token(token=push_token)
-                
+
             response = Response({"message": "Logged out successfully"}, status=200)
             response.delete_cookie("refresh_token")
             return response
@@ -271,24 +265,25 @@ class AdminUserListAPIView(APIView):
 
 
 # ────────────────────── COOKIE TOKEN REFRESH ──────────────────────
-class CookieTokenRefreshView(TokenRefreshView):
-    def post(self, request, *args, **kwargs):
-        refresh_token = request.COOKIES.get("refresh_token")
+class TokenRefreshAPIView(TokenRefreshView):
+    """
+    Refresh access token using refresh token from request body.
+    """
 
-        if refresh_token:
-            data = request.data.copy()
-            data["refresh"] = refresh_token
-            request._full_data = data
-        elif not request.data.get("refresh"):
-            return Response({"error": "Refresh token required"}, status=400)
+    def post(self, request, *args, **kwargs):
+        if not request.data.get("refresh"):
+            return Response(
+                {"error": "Refresh token required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
-            response = super().post(request, *args, **kwargs)
-            response.data.pop("refresh", None)
-            return response
-
+            return super().post(request, *args, **kwargs)
         except (InvalidToken, TokenError):
-            return Response({"error": "Invalid or expired refresh token"}, status=401)
+            return Response(
+                {"error": "Invalid or expired refresh token"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
 
 # ────────────────────── ADMIN: CREATE ANY USER TYPE ──────────────────────

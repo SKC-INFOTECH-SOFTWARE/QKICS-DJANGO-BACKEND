@@ -11,7 +11,7 @@ from .views import (
     PhoneCheckAPIView,
     LogoutAPIView,
     AdminUserListAPIView,
-    CookieTokenRefreshView,
+    TokenRefreshAPIView,
     AdminCreateUserAPIView,
     UnifiedPublicProfileAPIView,
     UserSearchAPIView,
@@ -21,7 +21,7 @@ urlpatterns = [
     # Authentication
     path("register/", RegisterAPIView.as_view(), name="register"),
     path("login/", LoginAPIView.as_view(), name="login"),
-    path("token/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
+    path("token/refresh/", TokenRefreshAPIView.as_view(), name="token_refresh"),
     
     # Public Profile (Unified)
     path("profiles/<str:username>/", UnifiedPublicProfileAPIView.as_view(), name="public-profile",),
