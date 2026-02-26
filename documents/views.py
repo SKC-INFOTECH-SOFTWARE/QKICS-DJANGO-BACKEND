@@ -12,6 +12,7 @@ from .serializers import (
     DocumentDetailSerializer,
     DocumentDownloadSerializer,
     UserDocumentCreateSerializer,
+    UserDocumentUpdateSerializer,
 )
 from .services.access import can_user_download_document
 from .pagination import DocumentCursorPagination
@@ -61,7 +62,7 @@ class DocumentListView(generics.ListAPIView):
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        return Document.objects.filter(is_active=True)
+        return Document.objects.filter(is_active=True).select_related("uploaded_by")
 
 
 # =====================================================
@@ -77,7 +78,7 @@ class DocumentDetailView(generics.RetrieveAPIView):
     lookup_field = "uuid"
 
     def get_queryset(self):
-        return Document.objects.filter(is_active=True)
+        return Document.objects.filter(is_active=True).select_related("uploaded_by")
 
 
 # =====================================================
@@ -207,7 +208,7 @@ class UserDocumentUpdateView(generics.UpdateAPIView):
     """
 
     permission_classes = [IsAuthenticated]
-    serializer_class = UserDocumentCreateSerializer
+    serializer_class = UserDocumentUpdateSerializer
     lookup_field = "uuid"
 
     def get_queryset(self):

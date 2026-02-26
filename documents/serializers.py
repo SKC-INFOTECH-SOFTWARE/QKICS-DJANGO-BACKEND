@@ -22,7 +22,6 @@ class DocumentListSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "access_type",
-            "is_active",
             "created_at",
         ]
 
@@ -33,10 +32,8 @@ class DocumentListSerializer(serializers.ModelSerializer):
 class DocumentDetailSerializer(serializers.ModelSerializer):
     """
     Used for document detail page.
-    File URL is exposed ONLY for detail view.
+    Returns document metadata only.
     """
-
-    file_url = serializers.FileField(source="file", read_only=True)
 
     class Meta:
         model = Document
@@ -45,7 +42,6 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "access_type",
-            "file_url",
             "created_at",
         ]
 
@@ -87,3 +83,16 @@ class UserDocumentCreateSerializer(serializers.ModelSerializer):
         if value != Document.AccessType.FREE:
             raise serializers.ValidationError("You can only upload FREE documents.")
         return value
+
+
+class UserDocumentUpdateSerializer(serializers.ModelSerializer):
+    """
+    Allows users to update title and description only.
+    """
+
+    class Meta:
+        model = Document
+        fields = [
+            "title",
+            "description",
+        ]
