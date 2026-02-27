@@ -271,14 +271,13 @@ class PostMedia(models.Model):
         # IMAGE VALIDATION
         if mime_type.startswith("image"):
             try:
+                self.file.seek(0)
                 img = Image.open(self.file)
                 img.verify()
-                img.close()
                 self.file.seek(0)
                 self.media_type = self.IMAGE
-            except (OSError, SyntaxError):
+            except (OSError, SyntaxError, ValueError):
                 raise ValidationError("Invalid image file.")
-
         # VIDEO VALIDATION
         elif mime_type.startswith("video"):
             allowed_video_types = [

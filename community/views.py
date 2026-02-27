@@ -34,6 +34,7 @@ from notifications.services.events import (
     notify_comment_replied,
 )
 from rest_framework.parsers import MultiPartParser, FormParser
+from .serializers import PostUpdateSerializer
 User = get_user_model()
 
 
@@ -193,12 +194,12 @@ class PostDetailView(APIView):
         post = self.get_object(pk)
         return Response(PostSerializer(post, context={"request": request}).data)
 
-    def put(self, request, pk):
+    def patch(self, request, pk):
         post = self.get_object(pk)
         if post.author != request.user:
             return Response({"error": "Not authorized"}, status=403)
 
-        serializer = PostCreateSerializer(post, data=request.data)
+        serializer = PostUpdateSerializer(post, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 

@@ -3,6 +3,8 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from .models import Post, Comment, Tag, PostMedia
 from subscriptions.services.access import is_user_premium  #  (subscription)
+from django.db.models import Max
+import mimetypes
 
 User = get_user_model()
 
@@ -327,3 +329,105 @@ class CommentCreateSerializer(serializers.ModelSerializer):
                 {"full_content": "Full content is required"}
             )
         return attrs
+
+
+class PostUpdateSerializer(serializers.ModelSerializer):
+    add_media = serializers.ListField(
+        child=serializers.FileField(), write_only=True, required=False
+    )
+    remove_media_ids = serializers.JSONField(required=False)
+    reorder_media = serializers.JSONField(required=False)
+
+    class Meta:
+        model = Post
+        fields = [
+            "title",
+            "preview_content",
+            "full_content",
+            "knowledge_hub",
+            "tags",
+            "add_media",
+            "remove_media_ids",
+            "reorder_media",
+        ]
+
+    # -------------------------
+    # MEDIA VALIDATION
+    # -------------------------
+    def validate_add_media(self, files):
+        for file in files:
+            mime_type, _ = mimetypes.guess_type(file.name)
+
+            if not mime_type:
+                raise serializers.ValidationError(
+                    f"Could not determine file type for {file.name}"
+                )
+
+            # IMAGE → 20MB
+            if mime_type.startswith("image"):
+                if file.size > 20 * 1024 * 1024:
+                    raise serializers.ValidationError(
+                        f"{file.name} exceeds 20MB image limit."
+                    )
+
+            # VIDEO → 100MB
+            elif mime_type.startswith("video"):
+                if file.size > 100 * 1024 * 1024:
+                    raise serializers.ValidationError(
+                        f"{file.name} exceeds 100MB video limit."
+                    )
+
+            else:
+                raise serializers.ValidationError(f"{file.name} is not supported.")
+
+        return files
+
+    # -------------------------
+    # ATOMIC UPDATE
+    # -------------------------
+    def update(self, instance, validated_data):
+        add_media = validated_data.pop("add_media", [])
+        remove_ids = validated_data.pop("remove_media_ids", [])
+        reorder_data = validated_data.pop("reorder_media", [])
+        tags = validated_data.pop("tags", None)
+
+        with transaction.atomic():
+
+            # 🔹 Update text fields
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+
+            instance.save()
+
+            if tags is not None:
+                instance.tags.set(tags)
+
+            # 🔹 Remove selected media
+            if remove_ids:
+                instance.media.filter(id__in=remove_ids).delete()
+
+            # 🔹 Reorder media
+            for item in reorder_data:
+                media = instance.media.filter(id=item.get("id")).first()
+                if media:
+                    media.order = item.get("order", media.order)
+                    media.save()
+
+            # 🔹 Max 10 media check
+            current_count = instance.media.count()
+            if current_count + len(add_media) > 10:
+                raise serializers.ValidationError(
+                    "Maximum 10 media files allowed per post."
+                )
+
+            # 🔹 Add new media
+            current_max_order = (
+                instance.media.aggregate(Max("order"))["order__max"] or 0
+            )
+
+            for index, file in enumerate(add_media):
+                PostMedia.objects.create(
+                    post=instance, file=file, order=current_max_order + index + 1
+                )
+
+        return instance
