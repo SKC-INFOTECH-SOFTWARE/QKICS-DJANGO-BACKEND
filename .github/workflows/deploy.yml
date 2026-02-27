@@ -101,17 +101,17 @@ jobs:
           # BUILD
           # ==============================
           echo "Rebuilding containers..."
-          sudo docker-compose -f docker-compose.prod.yml build --no-cache
+          sudo docker compose -f docker-compose.prod.yml build --no-cache
 
           # ==============================
           # RESTART
           # entrypoint.sh handles: migrate + collectstatic + gunicorn
           # ==============================
           echo "Stopping old containers..."
-          sudo docker-compose -f docker-compose.prod.yml down
+          sudo docker compose -f docker-compose.prod.yml down
 
           echo "Starting containers..."
-          sudo docker-compose -f docker-compose.prod.yml up -d
+          sudo docker compose -f docker-compose.prod.yml up -d
 
           # ==============================
           # WAIT FOR STARTUP
@@ -141,7 +141,7 @@ jobs:
             if [ $i -eq 10 ]; then
               echo "❌ Health check failed after 10 attempts"
               echo "--- Last 50 lines of Django logs ---"
-              sudo docker-compose -f docker-compose.prod.yml logs --tail=50 django
+              sudo docker compose -f docker-compose.prod.yml logs --tail=50 django
               exit 1
             fi
             echo "Not ready yet, retrying in 10s..."
