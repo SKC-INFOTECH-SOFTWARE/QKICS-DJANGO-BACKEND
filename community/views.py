@@ -33,7 +33,7 @@ from notifications.services.events import (
     notify_post_commented,
     notify_comment_replied,
 )
-
+from rest_framework.parsers import MultiPartParser, FormParser
 User = get_user_model()
 
 
@@ -109,7 +109,8 @@ class PostListCreateView(ListAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = PostSerializer
     pagination_class = PostCursorPagination
-
+    parser_classes = [MultiPartParser, FormParser]
+    
     def get_queryset(self):
         return get_optimized_post_queryset().order_by("-created_at")
 
