@@ -83,8 +83,10 @@ class LoginAPIView(APIView):
                     "first_name": user.first_name,
                     "last_name": user.last_name,
                 },
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
+                "tokens": {
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
             },
             status=status.HTTP_200_OK,
         )
