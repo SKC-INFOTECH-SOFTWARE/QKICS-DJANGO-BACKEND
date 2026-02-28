@@ -102,8 +102,7 @@ class User(AbstractUser):
                 break
             quality -= 5
 
-        # Use USER ID (BEST) or username
-        filename = f"user_{self.pk or 'new'}.jpg"
+        filename = f"user_{self.uuid}.jpg"
 
         self.profile_picture = ContentFile(buffer.getvalue(), name=filename)
 
