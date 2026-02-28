@@ -272,9 +272,7 @@ class AdminUserListAPIView(APIView):
 
 # ────────────────────── COOKIE TOKEN REFRESH ──────────────────────
 class TokenRefreshAPIView(TokenRefreshView):
-    """
-    Refresh access token using refresh token from request body.
-    """
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         if not request.data.get("refresh"):
@@ -284,7 +282,13 @@ class TokenRefreshAPIView(TokenRefreshView):
             )
 
         try:
-            return super().post(request, *args, **kwargs)
+            response = super().post(request, *args, **kwargs)
+
+            return Response(
+                {"tokens": {"access": response.data.get("access")}},
+                status=status.HTTP_200_OK,
+            )
+
         except (InvalidToken, TokenError):
             return Response(
                 {"error": "Invalid or expired refresh token"},
