@@ -224,24 +224,28 @@ class PhoneCheckAPIView(APIView):
 
 # ────────────────────── LOGOUT API ──────────────────────
 class LogoutAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        refresh_token = serializer.validated_data["refresh"]
+
         try:
-            refresh_token = request.COOKIES.get("refresh_token")
-            if refresh_token:
-                token = RefreshToken(refresh_token)
-                token.blacklist()
+            token = RefreshToken(refresh_token)
+            token.blacklist()
 
-            push_token = request.data.get("pushToken")
-            if push_token:
-                unregister_push_token(token=push_token)
+            return Response(
+                {"message": "Logged out successfully"},
+                status=status.HTTP_200_OK,
+            )
 
-            response = Response({"message": "Logged out successfully"}, status=200)
-            response.delete_cookie("refresh_token")
-            return response
-        except Exception:
-            return Response({"error": "Invalid token"}, status=400)
+        except TokenError:
+            return Response(
+                {"error": "Invalid or expired refresh token"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 # ────────────────────── ADMIN USER LIST ──────────────────────
