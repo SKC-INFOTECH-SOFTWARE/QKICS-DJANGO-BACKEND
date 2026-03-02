@@ -17,6 +17,7 @@ urlpatterns = [
     path("api/v1/documents/", include("documents.urls")),
     path("api/v1/admin/", include("adminpanel.urls")),
     path("api/v1/notifications/", include("notifications.urls")),
+    path("api/v1/ads/", include("ads.urls")),
 ]
 
 if settings.DEBUG:
