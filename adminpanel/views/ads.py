@@ -1,4 +1,9 @@
-from rest_framework.generics import ListAPIView, CreateAPIView, UpdateAPIView
+from rest_framework.generics import (
+    ListAPIView,
+    CreateAPIView,
+    UpdateAPIView,
+    DestroyAPIView,
+)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -64,5 +69,15 @@ class AdminAdvertisementUpdateView(UpdateAPIView):
 
     queryset = Advertisement.objects.all()
     serializer_class = AdminAdvertisementUpdateSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+    lookup_field = "id"
+
+
+class AdminAdvertisementDeleteView(DestroyAPIView):
+    """
+    Admin: Delete advertisement
+    """
+
+    queryset = Advertisement.objects.all()
     permission_classes = [IsAuthenticated, IsAdmin]
     lookup_field = "id"
