@@ -1,4 +1,4 @@
-from rest_framework.generics import ListAPIView, CreateAPIView
+from rest_framework.generics import ListAPIView, CreateAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -8,6 +8,7 @@ from adminpanel.pagination import AdminPagination
 from adminpanel.serializers import (
     AdminAdvertisementSerializer,
     AdminAdvertisementCreateSerializer,
+    AdminAdvertisementUpdateSerializer,
 )
 from ads.models import Advertisement
 
@@ -54,3 +55,14 @@ class AdminAdvertisementCreateView(CreateAPIView):
     queryset = Advertisement.objects.all()
     serializer_class = AdminAdvertisementCreateSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
+
+
+class AdminAdvertisementUpdateView(UpdateAPIView):
+    """
+    Admin: Update advertisement
+    """
+
+    queryset = Advertisement.objects.all()
+    serializer_class = AdminAdvertisementUpdateSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]
+    lookup_field = "id"

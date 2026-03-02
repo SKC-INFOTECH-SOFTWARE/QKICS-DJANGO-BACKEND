@@ -34,3 +34,15 @@ class AdminAdvertisementCreateSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         validated_data["created_by"] = request.user
         return super().create(validated_data)
+
+
+class AdminAdvertisementUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Advertisement
+        exclude = [
+            "uuid",
+            "media_type",
+            "created_by",
+            "created_at",
+            "updated_at",
+        ]

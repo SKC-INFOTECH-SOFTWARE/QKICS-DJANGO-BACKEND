@@ -11,6 +11,7 @@ from .views.entrepreneurs import (
 from .views.ads import (
     AdminAdvertisementListView,
     AdminAdvertisementCreateView,
+    AdminAdvertisementUpdateView,
 )
 
 urlpatterns = [
@@ -48,5 +49,10 @@ urlpatterns = [
         "ads/create/",
         AdminAdvertisementCreateView.as_view(),
         name="admin-advertisement-create",
+    ),
+    path(
+        "ads/<int:id>/",
+        AdminAdvertisementUpdateView.as_view(),
+        name="admin-advertisement-update",
     ),
 ]
