@@ -8,6 +8,7 @@ from .views.entrepreneurs import (
     AdminEntrepreneurApplicationListView,
     AdminEntrepreneurApplicationUpdateView,
 )
+from .views.ads import AdminAdvertisementListView
 
 urlpatterns = [
     # Admin user management
@@ -33,5 +34,10 @@ urlpatterns = [
         "entrepreneurs/applications/<int:profile_id>/",
         AdminEntrepreneurApplicationUpdateView.as_view(),
         name="admin-entrepreneur-application-update",
+    ),
+    path(
+        "ads/",
+        AdminAdvertisementListView.as_view(),
+        name="admin-advertisements",
     ),
 ]
