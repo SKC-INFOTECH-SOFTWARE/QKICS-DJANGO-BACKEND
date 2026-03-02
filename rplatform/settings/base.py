@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "documents",
     "adminpanel",
     "notifications",
+    "ads",
 ]
 
 # ==================================================
