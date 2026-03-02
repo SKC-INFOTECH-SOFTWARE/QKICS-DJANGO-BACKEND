@@ -1,11 +1,14 @@
-from rest_framework.generics import ListAPIView
+from rest_framework.generics import ListAPIView, CreateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
 from users.permissions import IsAdmin
 from adminpanel.pagination import AdminPagination
-from adminpanel.serializers import AdminAdvertisementSerializer
+from adminpanel.serializers import (
+    AdminAdvertisementSerializer,
+    AdminAdvertisementCreateSerializer,
+)
 from ads.models import Advertisement
 
 
@@ -41,3 +44,13 @@ class AdminAdvertisementListView(ListAPIView):
     ]
 
     ordering = ["-created_at"]
+
+
+class AdminAdvertisementCreateView(CreateAPIView):
+    """
+    Admin: Create new advertisement
+    """
+
+    queryset = Advertisement.objects.all()
+    serializer_class = AdminAdvertisementCreateSerializer
+    permission_classes = [IsAuthenticated, IsAdmin]

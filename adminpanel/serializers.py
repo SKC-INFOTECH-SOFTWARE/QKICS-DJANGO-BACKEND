@@ -17,3 +17,20 @@ class AdminAdvertisementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Advertisement
         fields = "__all__"
+
+
+class AdminAdvertisementCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Advertisement
+        exclude = [
+            "uuid",
+            "media_type",
+            "created_by",
+            "created_at",
+            "updated_at",
+        ]
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        validated_data["created_by"] = request.user
+        return super().create(validated_data)
