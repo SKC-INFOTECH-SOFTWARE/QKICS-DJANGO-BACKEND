@@ -30,7 +30,7 @@ from notifications.services.events import (
     notify_booking_approved,
     notify_booking_declined,
 )
-
+from .pagination import SlotCursorPagination
 # ===========================================================
 # SLOT VIEWS
 # ============================================================
@@ -256,7 +256,7 @@ class BookingApprovalView(APIView):
 class InvestorSlotListView(generics.ListAPIView):
 
     serializer_class = InvestorSlotSerializer
-    pagination_class = None
+    pagination_class = SlotCursorPagination
 
     def get_queryset(self):
 
