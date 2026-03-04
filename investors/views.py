@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from .models import Investor, Industry, StartupStage
@@ -182,11 +182,13 @@ class AdminVerifyInvestorView(APIView):
 
 # Reference data
 class IndustryListView(APIView):
+    permission_classes = [AllowAny]
     def get(self, request):
         return Response(IndustrySerializer(Industry.objects.all(), many=True).data)
 
 
 class StartupStageListView(APIView):
+    permission_classes = [AllowAny]
     def get(self, request):
         return Response(
             StartupStageSerializer(StartupStage.objects.all(), many=True).data
