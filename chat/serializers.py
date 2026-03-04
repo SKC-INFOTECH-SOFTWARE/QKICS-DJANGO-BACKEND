@@ -14,7 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class ChatRoomSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    expert = UserSerializer(read_only=True)
+    advisor = UserSerializer(read_only=True)  # ← changed from expert
     last_message = serializers.SerializerMethodField()
 
     class Meta:
@@ -22,7 +22,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "user",
-            "expert",
+            "advisor",  # ← changed
             "created_at",
             "last_message_at",
             "last_message",
@@ -64,4 +64,8 @@ class MessageSerializer(serializers.ModelSerializer):
 
     def get_is_mine(self, obj):
         request = self.context.get("request")
-        return request.user == obj.sender if request and request.user.is_authenticated else False
+        return (
+            request.user == obj.sender
+            if request and request.user.is_authenticated
+            else False
+        )

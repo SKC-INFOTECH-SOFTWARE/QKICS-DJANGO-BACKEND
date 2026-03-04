@@ -7,16 +7,19 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status
 from .models import ChatRoom, Message, ReadReceipt
 from .serializers import ChatRoomSerializer, MessageSerializer
+from django.db.models import Q
 
 
 class ChatRoomListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        as_user = ChatRoom.objects.filter(user=request.user)
-        as_expert = ChatRoom.objects.filter(expert=request.user)
+        rooms = (
+            ChatRoom.objects.filter(Q(user=request.user) | Q(advisor=request.user))
+            .distinct()
+            .order_by("-last_message_at")
+        )
 
-        rooms = (as_user | as_expert).distinct().order_by("-last_message_at")
         serializer = ChatRoomSerializer(rooms, many=True, context={"request": request})
         return Response(serializer.data)
 
@@ -25,15 +28,21 @@ class ChatRoomMessagesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, room_id):
+
         room = get_object_or_404(
-            ChatRoom.objects.filter(id=room_id, user=request.user)
-            | ChatRoom.objects.filter(id=room_id, expert=request.user)
+            ChatRoom.objects.filter(
+                Q(id=room_id, user=request.user) | Q(id=room_id, advisor=request.user)
+            )
         )
 
         messages = room.messages.all().order_by("timestamp")
+
         serializer = MessageSerializer(
-            messages, many=True, context={"request": request}
+            messages,
+            many=True,
+            context={"request": request},
         )
+
         return Response(serializer.data)
 
 
@@ -44,9 +53,7 @@ class MarkRoomAsReadView(APIView):
         user = request.user
         room = get_object_or_404(ChatRoom, id=room_id)
 
-        # booking = room.booking
-
-        if user not in [room.user, room.expert]:  # ← use room directly
+        if user not in [room.user, room.advisor]:
             return Response(
                 {"status": "error", "message": "Not allowed"},
                 status=status.HTTP_403_FORBIDDEN,
