@@ -25,10 +25,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_id = self.scope["url_route"]["kwargs"]["room_id"]
         self.room_group_name = f"chat_{self.room_id}"
 
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
+        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
 
         await self.accept()
         print("✅ WS ACCEPTED")
@@ -39,7 +36,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {
                 "type": "user_online",
                 "user_id": self.user.id,
-            }
+            },
         )
 
     async def disconnect(self, close_code):
@@ -50,12 +47,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 {
                     "type": "user_offline",
                     "user_id": self.user.id,
-                }
+                },
             )
 
             await self.channel_layer.group_discard(
-                self.room_group_name,
-                self.channel_name
+                self.room_group_name, self.channel_name
             )
 
     async def receive(self, text_data):
@@ -64,8 +60,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         if msg_type == "chat_message":
             message = await self.save_message(
-                text=data.get("text"),
-                file=data.get("file")
+                text=data.get("text"), file=data.get("file")
             )
 
             await self.channel_layer.group_send(
@@ -80,7 +75,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         "sender_id": message.sender.id,
                         "timestamp": message.timestamp.isoformat(),
                     },
-                }
+                },
             )
 
         elif msg_type == "typing":
@@ -91,7 +86,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "user": self.user.username,
                     "user_id": self.user.id,
                     "is_typing": data.get("is_typing", False),
-                }
+                },
             )
 
         elif msg_type == "message_read":
@@ -102,32 +97,43 @@ class ChatConsumer(AsyncWebsocketConsumer):
     # ======================
 
     async def chat_message(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "chat_message",
-            **event["message"]
-        }))
+        await self.send(
+            text_data=json.dumps({"type": "chat_message", **event["message"]})
+        )
 
     async def typing_status(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "typing",
-            "user": event["user"],
-            "user_id": event["user_id"],
-            "is_typing": event["is_typing"],
-        }))
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "typing",
+                    "user": event["user"],
+                    "user_id": event["user_id"],
+                    "is_typing": event["is_typing"],
+                }
+            )
+        )
 
     async def user_online(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "user_status",
-            "user_id": event["user_id"],
-            "online": True,
-        }))
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "user_status",
+                    "user_id": event["user_id"],
+                    "online": True,
+                }
+            )
+        )
 
     async def user_offline(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "user_status",
-            "user_id": event["user_id"],
-            "online": False,
-        }))
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "user_status",
+                    "user_id": event["user_id"],
+                    "online": False,
+                }
+            )
+        )
 
     # ======================
     # Database Helpers
@@ -153,11 +159,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def get_unread_count(self):
         room = ChatRoom.objects.get(id=self.room_id)
 
-        return Message.objects.filter(
-            room=room
-        ).exclude(
-            readreceipt__user=self.user
-        ).count()
+        return (
+            Message.objects.filter(room=room)
+            .exclude(readreceipt__user=self.user)
+            .count()
+        )
 
     @database_sync_to_async
     def mark_as_read(self, message_id):
