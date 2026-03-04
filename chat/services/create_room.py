@@ -3,15 +3,11 @@ from django.db import transaction
 
 
 @transaction.atomic
-def get_or_create_chat_room(*, user, expert):
-    """
-    Create permanent chat room between user and expert.
-    Safe to call multiple times.
-    """
+def get_or_create_chat_room(*, user, advisor):
 
     room, created = ChatRoom.objects.get_or_create(
         user=user,
-        expert=expert,
+        advisor=advisor,
     )
 
     return room
