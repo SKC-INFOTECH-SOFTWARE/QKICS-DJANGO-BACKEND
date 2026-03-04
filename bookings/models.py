@@ -383,3 +383,157 @@ class Booking(models.Model):
             self.save(update_fields=["status", "completed_at", "updated_at"])
             return True
         return False
+
+
+# ==========================================================================
+# INVESTOR SLOTS
+# ==========================================================================
+class InvestorSlot(models.Model):
+
+    id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+
+    investor = models.ForeignKey(
+        "users.User", on_delete=models.CASCADE, related_name="investor_slots"
+    )
+
+    start_datetime = models.DateTimeField()
+    end_datetime = models.DateTimeField()
+
+    duration_minutes = models.PositiveIntegerField()
+
+    status = models.CharField(
+        max_length=16,
+        choices=(
+            ("ACTIVE", "Active"),
+            ("DISABLED", "Disabled"),
+        ),
+        default="ACTIVE",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["investor", "start_datetime"]),
+            models.Index(fields=["investor", "status"]),
+        ]
+        ordering = ["start_datetime"]
+
+        constraints = [
+            models.CheckConstraint(
+                check=Q(end_datetime__gt=models.F("start_datetime")),
+                name="investor_slot_end_after_start",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.investor} | {self.start_datetime} → {self.end_datetime}"
+
+    def clean(self):
+        super().clean()
+
+        if self.end_datetime <= self.start_datetime:
+            raise ValidationError("End datetime must be after start datetime.")
+
+        if self.start_datetime < timezone.now():
+            raise ValidationError("Cannot create slots in the past.")
+
+    def is_available(self):
+        if self.status != "ACTIVE":
+            return False
+
+        if self.start_datetime <= timezone.now():
+            return False
+
+        return not self.bookings.filter(
+            status__in=[
+                InvestorBooking.STATUS_PENDING,
+                InvestorBooking.STATUS_CONFIRMED,
+            ]
+        ).exists()
+
+
+# ==========================================================================
+# INVESTOR BOOKINGS
+# ==========================================================================
+class InvestorBooking(models.Model):
+
+    STATUS_PENDING = "PENDING"
+    STATUS_CONFIRMED = "CONFIRMED"
+    STATUS_CANCELLED = "CANCELLED"
+    STATUS_RESCHEDULED = "RESCHEDULED"
+    STATUS_COMPLETED = "COMPLETED"
+
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "Pending"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_RESCHEDULED, "Rescheduled"),
+        (STATUS_COMPLETED, "Completed"),
+    )
+
+    ACTIVE_STATUSES = [
+        STATUS_PENDING,
+        STATUS_CONFIRMED,
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+
+    user = models.ForeignKey(
+        "users.User", on_delete=models.CASCADE, related_name="investor_bookings"
+    )
+
+    investor = models.ForeignKey(
+        "users.User", on_delete=models.CASCADE, related_name="bookings_as_investor"
+    )
+
+    slot = models.ForeignKey(
+        "InvestorSlot", on_delete=models.PROTECT, related_name="bookings"
+    )
+
+    # snapshot of slot (important for historical accuracy)
+    start_datetime = models.DateTimeField()
+    end_datetime = models.DateTimeField()
+    duration_minutes = models.PositiveIntegerField()
+
+    status = models.CharField(
+        max_length=24, choices=STATUS_CHOICES, default=STATUS_PENDING
+    )
+
+    reschedule_count = models.PositiveSmallIntegerField(default=0)
+
+    chat_room_id = models.UUIDField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["investor", "status"]),
+        ]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["slot"],
+                condition=Q(
+                    status__in=[
+                        "PENDING",
+                        "CONFIRMED",
+                    ]
+                ),
+                name="unique_active_investor_booking_per_slot",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} → {self.investor} @ {self.start_datetime}"
+
+    def clean(self):
+        super().clean()
+
+        if self.user == self.investor:
+            raise ValidationError("User cannot book their own slot.")
