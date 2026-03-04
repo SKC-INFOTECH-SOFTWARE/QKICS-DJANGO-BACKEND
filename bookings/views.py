@@ -6,7 +6,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from .models import ExpertSlot, Booking
+from .models import (
+    ExpertSlot,
+    Booking,
+    InvestorSlot,
+    InvestorBooking,
+)
 from .serializers import (
     ExpertSlotSerializer,
     ExpertSlotCreateSerializer,
@@ -14,6 +19,10 @@ from .serializers import (
     BookingCreateSerializer,
     BookingSerializer,
     BookingApprovalSerializer,
+    InvestorSlotSerializer,
+    InvestorSlotCreateSerializer,
+    InvestorBookingSerializer,
+    InvestorBookingCreateSerializer,
 )
 
 from notifications.services.events import (
@@ -237,3 +246,72 @@ class BookingApprovalView(APIView):
             {"detail": "Booking declined."},
             status=status.HTTP_200_OK,
         )
+
+
+# ==================================================================
+# Investor views - separate from expert/user bookings, as they have different flows and permissions
+# ==================================================================
+
+
+class InvestorSlotListView(generics.ListAPIView):
+
+    serializer_class = InvestorSlotSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+
+        investor_uuid = self.kwargs["investor_id"]
+
+        return InvestorSlot.objects.filter(
+            investor__uuid=investor_uuid,
+            status="ACTIVE",
+            start_datetime__gt=timezone.now(),
+        ).order_by("start_datetime")
+
+
+class InvestorSlotCreateView(generics.CreateAPIView):
+
+    serializer_class = InvestorSlotCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(investor=self.request.user)
+
+
+class InvestorBookingCreateView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+
+        serializer = InvestorBookingCreateSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        booking = serializer.save()
+
+        response = InvestorBookingSerializer(
+            booking,
+            context={"request": request},
+        )
+
+        return Response(response.data, status=status.HTTP_201_CREATED)
+
+
+class InvestorBookingListView(generics.ListAPIView):
+
+    serializer_class = InvestorBookingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+
+        user = self.request.user
+        as_investor = self.request.query_params.get("as_investor")
+
+        if as_investor == "true":
+            return InvestorBooking.objects.filter(investor=user)
+
+        return InvestorBooking.objects.filter(user=user)

@@ -7,6 +7,10 @@ from .views import (
     BookingListCreateView,
     BookingDetailView,
     BookingApprovalView,
+    InvestorSlotListView,
+    InvestorSlotCreateView,
+    InvestorBookingCreateView,
+    InvestorBookingListView,
 )
 
 urlpatterns = [
@@ -50,5 +54,23 @@ urlpatterns = [
         "<uuid:booking_id>/approve/",
         BookingApprovalView.as_view(),
         name="booking-approve",
+    ),
+    # INVESTOR SLOTS
+    path(
+        "investors/<uuid:investor_id>/slots/",
+        InvestorSlotListView.as_view(),
+    ),
+    path(
+        "investors/slots/",
+        InvestorSlotCreateView.as_view(),
+    ),
+    # INVESTOR BOOKINGS
+    path(
+        "investor-bookings/",
+        InvestorBookingCreateView.as_view(),
+    ),
+    path(
+        "investor-bookings/list/",
+        InvestorBookingListView.as_view(),
     ),
 ]

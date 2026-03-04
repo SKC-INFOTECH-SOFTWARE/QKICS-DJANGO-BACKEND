@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.db import transaction
 from django.utils import timezone
 from .models import ExpertSlot, Booking
-
+from .models import InvestorSlot, InvestorBooking
 
 # ============================================================
 # EXPERT SLOT SERIALIZERS
@@ -412,3 +412,136 @@ class BookingStatusUpdateSerializer(serializers.Serializer):
             )
 
         return attrs
+
+
+# ==================================================================
+# Investor Slot Serializer
+# ==================================================================
+
+
+class InvestorSlotSerializer(serializers.ModelSerializer):
+
+    investor_name = serializers.CharField(source="investor.username", read_only=True)
+    is_available = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InvestorSlot
+        fields = [
+            "id",
+            "uuid",
+            "investor",
+            "investor_name",
+            "start_datetime",
+            "end_datetime",
+            "duration_minutes",
+            "status",
+            "is_available",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_is_available(self, obj):
+        return obj.is_available()
+
+
+# ==================================================================
+# Investor Slot Create Serializer
+# ==================================================================
+class InvestorSlotCreateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = InvestorSlot
+        fields = [
+            "start_datetime",
+            "end_datetime",
+            "duration_minutes",
+        ]
+
+    def validate(self, attrs):
+
+        start = attrs["start_datetime"]
+        end = attrs["end_datetime"]
+
+        if end <= start:
+            raise serializers.ValidationError("End time must be after start time.")
+
+        if start <= timezone.now():
+            raise serializers.ValidationError("Cannot create slot in the past.")
+
+        return attrs
+
+
+# ==================================================================
+# Investor Booking Serializer
+# ==================================================================
+class InvestorBookingSerializer(serializers.ModelSerializer):
+
+    user_name = serializers.CharField(source="user.username", read_only=True)
+    investor_name = serializers.CharField(source="investor.username", read_only=True)
+
+    class Meta:
+        model = InvestorBooking
+        fields = [
+            "id",
+            "uuid",
+            "user",
+            "user_name",
+            "investor",
+            "investor_name",
+            "slot",
+            "status",
+            "start_datetime",
+            "end_datetime",
+            "duration_minutes",
+            "reschedule_count",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
+# ==================================================================
+# Investor Booking Create Serializer
+# ==================================================================
+class InvestorBookingCreateSerializer(serializers.Serializer):
+
+    slot_id = serializers.UUIDField()
+
+    @transaction.atomic
+    def validate(self, attrs):
+
+        user = self.context["request"].user
+        slot_id = attrs["slot_id"]
+
+        try:
+            slot = InvestorSlot.objects.select_for_update().get(
+                uuid=slot_id,
+                status="ACTIVE",
+            )
+        except InvestorSlot.DoesNotExist:
+            raise serializers.ValidationError("Slot not available.")
+
+        if slot.investor == user:
+            raise serializers.ValidationError("You cannot book your own slot.")
+
+        if not slot.is_available():
+            raise serializers.ValidationError("Slot already booked.")
+
+        attrs["slot"] = slot
+        return attrs
+
+    def create(self, validated_data):
+
+        user = self.context["request"].user
+        slot = validated_data["slot"]
+
+        booking = InvestorBooking.objects.create(
+            user=user,
+            investor=slot.investor,
+            slot=slot,
+            start_datetime=slot.start_datetime,
+            end_datetime=slot.end_datetime,
+            duration_minutes=slot.duration_minutes,
+            status=InvestorBooking.STATUS_CONFIRMED,
+        )
+
+        return booking
