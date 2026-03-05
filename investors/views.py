@@ -37,6 +37,9 @@ class AdminCreateInvestorProfileView(APIView):
                 application_status="approved",
                 is_active=True,
             )
+            user.user_type = "investor"
+            user.save(update_fields=["user_type"])
+
             return Response(
                 {
                     "message": "Investor profile created and LIVE",
