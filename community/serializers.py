@@ -60,6 +60,10 @@ class ReplySerializer(serializers.ModelSerializer):
 
     #  (subscription-based rendering)
     content = serializers.SerializerMethodField()
+    
+    is_locked = serializers.SerializerMethodField()
+    preview_length = serializers.SerializerMethodField()
+    full_length = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
@@ -69,6 +73,9 @@ class ReplySerializer(serializers.ModelSerializer):
             "content",
             "total_likes",
             "is_liked",
+            "is_locked",
+            "preview_length",
+            "full_length",
             "created_at",
         ]
 
@@ -77,15 +84,33 @@ class ReplySerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = request.user if request else None
 
-        if user and user.is_authenticated and obj.author_id == user.id:
-            return obj.full_content or obj.content
+        if user and user.is_authenticated:
+            if obj.author_id == user.id:
+                return obj.full_content
+            if is_user_premium(user):
+                return obj.full_content
 
-        if user and user.is_authenticated and is_user_premium(user):
-            return obj.full_content or obj.content
+        return obj.preview_content
+    
+    def get_is_locked(self, obj):
+        request = self.context.get("request")
+        user = request.user if request else None
 
-        return obj.preview_content or obj.content
+        if user and user.is_authenticated:
+            if obj.author_id == user.id:
+                return False
+            if is_user_premium(user):
+                return False
 
-    # UNCHANGED
+        return bool(obj.full_content)
+    
+    def get_preview_length(self, obj):
+        return len(obj.preview_content or "")
+
+
+    def get_full_length(self, obj):
+        return len(obj.full_content or "")
+    
     def get_is_liked(self, obj):
         user = self.context["request"].user
         return user.is_authenticated and obj.comment_likes.filter(user=user).exists()
@@ -107,7 +132,10 @@ class CommentSerializer(serializers.ModelSerializer):
 
     #  (subscription-based rendering)
     content = serializers.SerializerMethodField()
-
+    
+    is_locked = serializers.SerializerMethodField()
+    preview_length = serializers.SerializerMethodField()
+    full_length = serializers.SerializerMethodField()
     class Meta:
         model = Comment
         fields = [
@@ -117,6 +145,9 @@ class CommentSerializer(serializers.ModelSerializer):
             "total_likes",
             "is_liked",
             "total_replies",
+            "is_locked",
+            "preview_length",
+            "full_length",
             "created_at",
         ]
 
@@ -125,15 +156,34 @@ class CommentSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = request.user if request else None
 
-        if user and user.is_authenticated and obj.author_id == user.id:
-            return obj.full_content or obj.content
+        if user and user.is_authenticated:
+            if obj.author_id == user.id:
+                return obj.full_content
+            if is_user_premium(user):
+                return obj.full_content
 
-        if user and user.is_authenticated and is_user_premium(user):
-            return obj.full_content or obj.content
+        return obj.preview_content
 
-        return obj.preview_content or obj.content
+    def get_is_locked(self, obj):
+        request = self.context.get("request")
+        user = request.user if request else None
 
-    # UNCHANGED
+        if user and user.is_authenticated:
+            if obj.author_id == user.id:
+                return False
+            if is_user_premium(user):
+                return False
+
+        return bool(obj.full_content)
+    
+    
+    def get_preview_length(self, obj):
+        return len(obj.preview_content or "")
+
+
+    def get_full_length(self, obj):
+        return len(obj.full_content or "")
+        
     def get_is_liked(self, obj):
         user = self.context["request"].user
         return user.is_authenticated and obj.comment_likes.filter(user=user).exists()
