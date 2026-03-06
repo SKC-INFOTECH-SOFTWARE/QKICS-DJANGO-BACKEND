@@ -165,7 +165,9 @@ class PostSerializer(serializers.ModelSerializer):
         source="total_comments_count", read_only=True
     )
     is_liked = serializers.SerializerMethodField()
-
+    is_locked = serializers.SerializerMethodField()
+    preview_length = serializers.SerializerMethodField()
+    full_length = serializers.SerializerMethodField()
     #  (subscription-based rendering)
     content = serializers.SerializerMethodField()
 
@@ -182,6 +184,9 @@ class PostSerializer(serializers.ModelSerializer):
             "total_likes",
             "total_comments",
             "is_liked",
+            "is_locked",
+            "preview_length",
+            "full_length",
             "created_at",
             "updated_at",
         ]
@@ -191,18 +196,38 @@ class PostSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = request.user if request else None
 
-        if user and user.is_authenticated and obj.author_id == user.id:
-            return obj.full_content or obj.content
+        if user and user.is_authenticated:
+            if obj.author_id == user.id:
+                return obj.full_content
+            if is_user_premium(user):
+                return obj.full_content
 
-        if user and user.is_authenticated and is_user_premium(user):
-            return obj.full_content or obj.content
+        preview = obj.preview_content
 
-        return obj.preview_content or obj.content
+        return preview
 
     # UNCHANGED
     def get_is_liked(self, obj):
         user = self.context["request"].user
         return user.is_authenticated and obj.post_likes.filter(user=user).exists()
+
+    def get_is_locked(self, obj):
+        request = self.context.get("request")
+        user = request.user if request else None
+
+        if user and user.is_authenticated:
+            if obj.author_id == user.id:
+                return False
+            if is_user_premium(user):
+                return False
+
+        return bool(obj.full_content)
+
+    def get_preview_length(self, obj):
+        return len(obj.preview_content or "")
+
+    def get_full_length(self, obj):
+        return len(obj.full_content or "")
 
 
 # =====================================================
