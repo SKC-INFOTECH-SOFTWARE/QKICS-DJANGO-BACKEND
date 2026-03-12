@@ -1,4 +1,10 @@
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.pagination import CursorPagination
+
+
+class AdminCursorPagination(CursorPagination):
+    page_size = 20
+    ordering = "-created_at"
 
 
 class AdminPagination(PageNumberPagination):

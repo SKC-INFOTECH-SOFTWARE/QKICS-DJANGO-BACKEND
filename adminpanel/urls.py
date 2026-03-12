@@ -14,6 +14,16 @@ from .views.ads import (
     AdminAdvertisementUpdateView,
     AdminAdvertisementDeleteView,
 )
+from .views.companies import (
+    AdminCompanyListView,
+    AdminCompanyDetailView,
+    AdminCompanyUpdateView,
+    AdminCompanyDeleteView,
+    AdminCompanyMembersView,
+    AdminCompanyMemberRemoveView,
+    AdminCompanyPostsView,
+    AdminCompanyPostDeleteView,
+)
 
 urlpatterns = [
     # Admin user management
@@ -60,5 +70,50 @@ urlpatterns = [
         "ads/<int:id>/delete/",
         AdminAdvertisementDeleteView.as_view(),
         name="admin-advertisement-delete",
+    ),
+    # =====================================================
+    # COMPANIES
+    # =====================================================
+    path("companies/", AdminCompanyListView.as_view(), name="admin-companies-list"),
+    path(
+        "companies/<uuid:uuid>/",
+        AdminCompanyDetailView.as_view(),
+        name="admin-company-detail",
+    ),
+    path(
+        "companies/<uuid:uuid>/update/",
+        AdminCompanyUpdateView.as_view(),
+        name="admin-company-update",
+    ),
+    path(
+        "companies/<uuid:uuid>/delete/",
+        AdminCompanyDeleteView.as_view(),
+        name="admin-company-delete",
+    ),
+    # =====================================================
+    # MEMBERS
+    # =====================================================
+    path(
+        "companies/<uuid:company_uuid>/members/",
+        AdminCompanyMembersView.as_view(),
+        name="admin-company-members",
+    ),
+    path(
+        "company-members/<uuid:uuid>/remove/",
+        AdminCompanyMemberRemoveView.as_view(),
+        name="admin-remove-member",
+    ),
+    # =====================================================
+    # POSTS
+    # =====================================================
+    path(
+        "companies/<uuid:company_uuid>/posts/",
+        AdminCompanyPostsView.as_view(),
+        name="admin-company-posts",
+    ),
+    path(
+        "company-posts/<uuid:uuid>/delete/",
+        AdminCompanyPostDeleteView.as_view(),
+        name="admin-company-post-delete",
     ),
 ]
