@@ -1,17 +1,25 @@
-from rest_framework import generics, permissions
+from rest_framework import generics
 from django.shortcuts import get_object_or_404
-from .serializers import CompanySerializer, CompanyPostSerializer
-from .permissions import IsCompanyOwner, IsCompanyEditor
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import Company, CompanyMember, CompanyPost
-from .serializers import CompanyMemberSerializer
 from rest_framework.response import Response
 from rest_framework.pagination import CursorPagination
+from rest_framework.exceptions import PermissionDenied
+
+from .models import Company, CompanyMember, CompanyPost
+from .serializers import (
+    CompanySerializer,
+    CompanyPostSerializer,
+    CompanyMemberSerializer,
+)
+from .permissions import IsCompanyOwner, IsCompanyEditor
 
 
-# Pagination Class
+# =====================================================
+# PAGINATION
+# =====================================================
+
+
 class CompanyPostCursorPagination(CursorPagination):
-
     page_size = 10
     ordering = "-created_at"
 
@@ -22,9 +30,8 @@ class CompanyPostCursorPagination(CursorPagination):
 
 
 class CompanyCreateView(generics.CreateAPIView):
-
     serializer_class = CompanySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
 
 # =====================================================
@@ -33,13 +40,11 @@ class CompanyCreateView(generics.CreateAPIView):
 
 
 class CompanyListView(generics.ListAPIView):
-
     serializer_class = CompanySerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
-
-        return Company.objects.filter(status="approved")
+        return Company.objects.filter(status="approved").select_related("owner")
 
 
 # =====================================================
@@ -48,12 +53,11 @@ class CompanyListView(generics.ListAPIView):
 
 
 class CompanyDetailView(generics.RetrieveAPIView):
-
     serializer_class = CompanySerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
     lookup_field = "slug"
 
-    queryset = Company.objects.filter(status="approved")
+    queryset = Company.objects.filter(status="approved").select_related("owner")
 
 
 # =====================================================
@@ -62,10 +66,11 @@ class CompanyDetailView(generics.RetrieveAPIView):
 
 
 class CompanyUpdateView(generics.UpdateAPIView):
-
     serializer_class = CompanySerializer
-    permission_classes = [permissions.IsAuthenticated, IsCompanyOwner]
-    queryset = Company.objects.all()
+    permission_classes = [IsAuthenticated, IsCompanyOwner]
+
+    def get_queryset(self):
+        return Company.objects.filter(owner=self.request.user)
 
 
 # =====================================================
@@ -74,15 +79,15 @@ class CompanyUpdateView(generics.UpdateAPIView):
 
 
 class CompanyMemberListView(generics.ListAPIView):
-
     serializer_class = CompanyMemberSerializer
     permission_classes = [IsAuthenticated, IsCompanyOwner]
 
     def get_queryset(self):
-
         company_id = self.kwargs["company_id"]
 
-        return CompanyMember.objects.filter(company_id=company_id)
+        return CompanyMember.objects.filter(company_id=company_id).select_related(
+            "user"
+        )
 
 
 # =====================================================
@@ -91,21 +96,27 @@ class CompanyMemberListView(generics.ListAPIView):
 
 
 class CompanyAddEditorView(generics.CreateAPIView):
-
     serializer_class = CompanyMemberSerializer
     permission_classes = [IsAuthenticated, IsCompanyOwner]
 
     def create(self, request, *args, **kwargs):
 
         company_id = self.kwargs["company_id"]
-
         company = get_object_or_404(Company, id=company_id)
 
         user_id = request.data.get("user_id")
 
-        member = CompanyMember.objects.create(
-            company=company, user_id=user_id, role="editor"
+        member, created = CompanyMember.objects.get_or_create(
+            company=company,
+            user_id=user_id,
+            defaults={"role": "editor"},
         )
+
+        if not created:
+            return Response(
+                {"detail": "User is already a member of this company"},
+                status=400,
+            )
 
         serializer = self.get_serializer(member)
 
@@ -118,7 +129,6 @@ class CompanyAddEditorView(generics.CreateAPIView):
 
 
 class CompanyRemoveEditorView(generics.DestroyAPIView):
-
     permission_classes = [IsAuthenticated, IsCompanyOwner]
 
     def delete(self, request, *args, **kwargs):
@@ -127,7 +137,10 @@ class CompanyRemoveEditorView(generics.DestroyAPIView):
         user_id = self.kwargs["user_id"]
 
         member = get_object_or_404(
-            CompanyMember, company_id=company_id, user_id=user_id, role="editor"
+            CompanyMember,
+            company_id=company_id,
+            user_id=user_id,
+            role="editor",
         )
 
         member.delete()
@@ -141,15 +154,16 @@ class CompanyRemoveEditorView(generics.DestroyAPIView):
 
 
 class CompanyPostCreateView(generics.CreateAPIView):
-
     serializer_class = CompanyPostSerializer
     permission_classes = [IsAuthenticated, IsCompanyEditor]
 
     def perform_create(self, serializer):
 
         company_id = self.kwargs["company_id"]
-
         company = get_object_or_404(Company, id=company_id)
+
+        if company.status != "approved":
+            raise PermissionDenied("Company is not allowed to create posts.")
 
         serializer.save(company=company, author=self.request.user)
 
@@ -160,7 +174,6 @@ class CompanyPostCreateView(generics.CreateAPIView):
 
 
 class CompanyPostListView(generics.ListAPIView):
-
     serializer_class = CompanyPostSerializer
     permission_classes = [AllowAny]
     pagination_class = CompanyPostCursorPagination
@@ -169,7 +182,17 @@ class CompanyPostListView(generics.ListAPIView):
 
         company_id = self.kwargs["company_id"]
 
-        return CompanyPost.objects.filter(company_id=company_id, is_active=True)
+        return (
+            CompanyPost.objects.filter(
+                company_id=company_id,
+                is_active=True,
+            )
+            .select_related(
+                "author",
+                "company",
+            )
+            .prefetch_related("media")
+        )
 
 
 # =====================================================
@@ -178,12 +201,21 @@ class CompanyPostListView(generics.ListAPIView):
 
 
 class CompanyPostFeedView(generics.ListAPIView):
-
     serializer_class = CompanyPostSerializer
     permission_classes = [AllowAny]
     pagination_class = CompanyPostCursorPagination
 
-    queryset = CompanyPost.objects.filter(is_active=True, company__status="approved")
+    queryset = (
+        CompanyPost.objects.filter(
+            is_active=True,
+            company__status="approved",
+        )
+        .select_related(
+            "author",
+            "company",
+        )
+        .prefetch_related("media")
+    )
 
 
 # =====================================================
@@ -192,11 +224,11 @@ class CompanyPostFeedView(generics.ListAPIView):
 
 
 class CompanyPostUpdateView(generics.UpdateAPIView):
-
     serializer_class = CompanyPostSerializer
     permission_classes = [IsAuthenticated, IsCompanyEditor]
 
-    queryset = CompanyPost.objects.all()
+    def get_queryset(self):
+        return CompanyPost.objects.filter(author=self.request.user)
 
 
 # =====================================================
@@ -205,7 +237,7 @@ class CompanyPostUpdateView(generics.UpdateAPIView):
 
 
 class CompanyPostDeleteView(generics.DestroyAPIView):
-
     permission_classes = [IsAuthenticated, IsCompanyEditor]
 
-    queryset = CompanyPost.objects.all()
+    def get_queryset(self):
+        return CompanyPost.objects.filter(author=self.request.user)
