@@ -1,10 +1,9 @@
 from rest_framework import generics, permissions
 from django.shortcuts import get_object_or_404
-from .models import Company
-from .serializers import CompanySerializer
-from .permissions import IsCompanyOwner
-from rest_framework.permissions import IsAuthenticated
-from .models import Company, CompanyMember
+from .serializers import CompanySerializer, CompanyPostSerializer
+from .permissions import IsCompanyOwner, IsCompanyEditor
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from .models import Company, CompanyMember, CompanyPost
 from .serializers import CompanyMemberSerializer
 from rest_framework.response import Response
 
@@ -125,3 +124,77 @@ class CompanyRemoveEditorView(generics.DestroyAPIView):
         member.delete()
 
         return Response({"detail": "Editor removed successfully"})
+
+
+# =====================================================
+# CREATE COMPANY POST
+# =====================================================
+
+
+class CompanyPostCreateView(generics.CreateAPIView):
+
+    serializer_class = CompanyPostSerializer
+    permission_classes = [IsAuthenticated, IsCompanyEditor]
+
+    def perform_create(self, serializer):
+
+        company_id = self.kwargs["company_id"]
+
+        company = get_object_or_404(Company, id=company_id)
+
+        serializer.save(company=company, author=self.request.user)
+
+
+# =====================================================
+# LIST COMPANY POSTS
+# =====================================================
+
+
+class CompanyPostListView(generics.ListAPIView):
+
+    serializer_class = CompanyPostSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+
+        company_id = self.kwargs["company_id"]
+
+        return CompanyPost.objects.filter(company_id=company_id, is_active=True)
+
+
+# =====================================================
+# GLOBAL COMPANY POSTS FEED
+# =====================================================
+
+
+class CompanyPostFeedView(generics.ListAPIView):
+
+    serializer_class = CompanyPostSerializer
+    permission_classes = [AllowAny]
+
+    queryset = CompanyPost.objects.filter(is_active=True, company__status="approved")
+
+
+# =====================================================
+# UPDATE COMPANY POST
+# =====================================================
+
+
+class CompanyPostUpdateView(generics.UpdateAPIView):
+
+    serializer_class = CompanyPostSerializer
+    permission_classes = [IsAuthenticated, IsCompanyEditor]
+
+    queryset = CompanyPost.objects.all()
+
+
+# =====================================================
+# DELETE COMPANY POST
+# =====================================================
+
+
+class CompanyPostDeleteView(generics.DestroyAPIView):
+
+    permission_classes = [IsAuthenticated, IsCompanyEditor]
+
+    queryset = CompanyPost.objects.all()
