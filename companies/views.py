@@ -6,6 +6,15 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Company, CompanyMember, CompanyPost
 from .serializers import CompanyMemberSerializer
 from rest_framework.response import Response
+from rest_framework.pagination import CursorPagination
+
+
+# Pagination Class
+class CompanyPostCursorPagination(CursorPagination):
+
+    page_size = 10
+    ordering = "-created_at"
+
 
 # =====================================================
 # CREATE COMPANY
@@ -154,6 +163,7 @@ class CompanyPostListView(generics.ListAPIView):
 
     serializer_class = CompanyPostSerializer
     permission_classes = [AllowAny]
+    pagination_class = CompanyPostCursorPagination
 
     def get_queryset(self):
 
@@ -171,6 +181,7 @@ class CompanyPostFeedView(generics.ListAPIView):
 
     serializer_class = CompanyPostSerializer
     permission_classes = [AllowAny]
+    pagination_class = CompanyPostCursorPagination
 
     queryset = CompanyPost.objects.filter(is_active=True, company__status="approved")
 
