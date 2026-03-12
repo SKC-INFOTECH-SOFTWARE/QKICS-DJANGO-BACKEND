@@ -4,13 +4,9 @@ from .views import (
     CompanyListView,
     CompanyDetailView,
     CompanyUpdateView,
-)
-from .views import (
     CompanyMemberListView,
     CompanyAddEditorView,
     CompanyRemoveEditorView,
-)
-from .views import (
     CompanyPostCreateView,
     CompanyPostListView,
     CompanyPostFeedView,
