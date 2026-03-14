@@ -62,16 +62,22 @@ class AdminCompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
         fields = [
-            "uuid",
+            "id",
             "name",
+            "slug",
             "description",
+            "industry",
+            "website",
+            "location",
+            "status",
             "owner",
             "created_at",
             "updated_at",
-            "is_active",
         ]
+
         read_only_fields = [
-            "uuid",
+            "id",
+            "slug",
             "owner",
             "created_at",
             "updated_at",

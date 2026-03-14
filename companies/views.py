@@ -19,7 +19,7 @@ from .permissions import IsCompanyOwner, IsCompanyEditor
 # =====================================================
 
 
-class CompanyPostCursorPagination(CursorPagination):
+class CompanyCursorPagination(CursorPagination):
     page_size = 10
     ordering = "-created_at"
 
@@ -42,7 +42,8 @@ class CompanyCreateView(generics.CreateAPIView):
 class CompanyListView(generics.ListAPIView):
     serializer_class = CompanySerializer
     permission_classes = [AllowAny]
-
+    pagination_class = CompanyCursorPagination
+    
     def get_queryset(self):
         return Company.objects.filter(status="approved").select_related("owner")
 
@@ -176,7 +177,7 @@ class CompanyPostCreateView(generics.CreateAPIView):
 class CompanyPostListView(generics.ListAPIView):
     serializer_class = CompanyPostSerializer
     permission_classes = [AllowAny]
-    pagination_class = CompanyPostCursorPagination
+    pagination_class = CompanyCursorPagination
 
     def get_queryset(self):
 
@@ -203,7 +204,7 @@ class CompanyPostListView(generics.ListAPIView):
 class CompanyPostFeedView(generics.ListAPIView):
     serializer_class = CompanyPostSerializer
     permission_classes = [AllowAny]
-    pagination_class = CompanyPostCursorPagination
+    pagination_class = CompanyCursorPagination
 
     queryset = (
         CompanyPost.objects.filter(

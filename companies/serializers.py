@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
+from users.serializers import CompanyUser
+
 from .models import (
     Company,
     CompanyMember,
@@ -15,9 +17,9 @@ User = get_user_model()
 # COMPANY MEMBER SERIALIZER
 # =====================================================
 
-class CompanyMemberSerializer(serializers.ModelSerializer):
 
-    user = serializers.StringRelatedField(read_only=True)
+class CompanyMemberSerializer(serializers.ModelSerializer):
+    user = CompanyUser(read_only=True)
 
     class Meta:
         model = CompanyMember
@@ -33,6 +35,7 @@ class CompanyMemberSerializer(serializers.ModelSerializer):
 # =====================================================
 # COMPANY SERIALIZER
 # =====================================================
+
 
 class CompanySerializer(serializers.ModelSerializer):
 
@@ -71,17 +74,10 @@ class CompanySerializer(serializers.ModelSerializer):
 
         request = self.context["request"]
 
-        company = Company.objects.create(
-            owner=request.user,
-            **validated_data
-        )
+        company = Company.objects.create(owner=request.user, **validated_data)
 
         # Create owner membership
-        CompanyMember.objects.create(
-            company=company,
-            user=request.user,
-            role="owner"
-        )
+        CompanyMember.objects.create(company=company, user=request.user, role="owner")
 
         return company
 
@@ -89,6 +85,7 @@ class CompanySerializer(serializers.ModelSerializer):
 # =====================================================
 # COMPANY POST MEDIA SERIALIZER
 # =====================================================
+
 
 class CompanyPostMediaSerializer(serializers.ModelSerializer):
 
@@ -112,19 +109,15 @@ class CompanyPostMediaSerializer(serializers.ModelSerializer):
 # COMPANY POST SERIALIZER
 # =====================================================
 
+
 class CompanyPostSerializer(serializers.ModelSerializer):
 
     author = serializers.StringRelatedField(read_only=True)
 
-    media = CompanyPostMediaSerializer(
-        many=True,
-        read_only=True
-    )
+    media = CompanyPostMediaSerializer(many=True, read_only=True)
 
     uploaded_files = serializers.ListField(
-        child=serializers.FileField(),
-        write_only=True,
-        required=False
+        child=serializers.FileField(), write_only=True, required=False
     )
 
     class Meta:
@@ -154,15 +147,9 @@ class CompanyPostSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         uploaded_files = validated_data.pop("uploaded_files", [])
 
-        post = CompanyPost.objects.create(
-            author=request.user,
-            **validated_data
-        )
+        post = CompanyPost.objects.create(author=request.user, **validated_data)
 
         for file in uploaded_files:
-            CompanyPostMedia.objects.create(
-                post=post,
-                file=file
-            )
+            CompanyPostMedia.objects.create(post=post, file=file)
 
         return post
