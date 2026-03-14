@@ -12,9 +12,11 @@ from .views import (
     CompanyPostFeedView,
     CompanyPostUpdateView,
     CompanyPostDeleteView,
+    MyCompaniesView,
 )
 
 urlpatterns = [
+    path("my/", MyCompaniesView.as_view(), name="my-companies"),
     path("", CompanyCreateView.as_view(), name="company-create"),
     path("list/", CompanyListView.as_view(), name="company-list"),
     path("<slug:slug>/", CompanyDetailView.as_view(), name="company-detail"),

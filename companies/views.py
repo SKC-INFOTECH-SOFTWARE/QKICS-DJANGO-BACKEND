@@ -43,7 +43,7 @@ class CompanyListView(generics.ListAPIView):
     serializer_class = CompanySerializer
     permission_classes = [AllowAny]
     pagination_class = CompanyCursorPagination
-    
+
     def get_queryset(self):
         return Company.objects.filter(status="approved").select_related("owner")
 
@@ -72,6 +72,24 @@ class CompanyUpdateView(generics.UpdateAPIView):
 
     def get_queryset(self):
         return Company.objects.filter(owner=self.request.user)
+
+
+# =====================================================
+# MY LIST COMPANY
+# =====================================================
+class MyCompaniesView(generics.ListAPIView):
+
+    serializer_class = CompanySerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = CompanyCursorPagination
+
+    def get_queryset(self):
+        return (
+            Company.objects.filter(members__user=self.request.user)
+            .select_related("owner")
+            .prefetch_related("members__user")
+            .distinct()
+        )
 
 
 # =====================================================
