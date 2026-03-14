@@ -24,13 +24,14 @@ from .serializers import (
     InvestorBookingSerializer,
     InvestorBookingCreateSerializer,
 )
-
+from bookings.services.investor_booking_confirm import create_investor_booking
 from notifications.services.events import (
     notify_booking_created,
     notify_booking_approved,
     notify_booking_declined,
 )
 from .pagination import SlotCursorPagination
+
 # ===========================================================
 # SLOT VIEWS
 # ============================================================
@@ -291,7 +292,12 @@ class InvestorBookingCreateView(APIView):
 
         serializer.is_valid(raise_exception=True)
 
-        booking = serializer.save()
+        slot = serializer.validated_data["slot"]
+
+        booking = create_investor_booking(
+            user=request.user,
+            slot=slot,
+        )
 
         response = InvestorBookingSerializer(
             booking,

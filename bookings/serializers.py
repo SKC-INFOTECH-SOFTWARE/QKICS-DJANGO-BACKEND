@@ -4,6 +4,7 @@ from django.utils import timezone
 from .models import ExpertSlot, Booking
 from .models import InvestorSlot, InvestorBooking
 from subscriptions.services.access import is_user_premium
+
 # ============================================================
 # EXPERT SLOT SERIALIZERS
 # ============================================================
@@ -510,10 +511,12 @@ class InvestorBookingCreateSerializer(serializers.Serializer):
     def validate(self, attrs):
 
         user = self.context["request"].user
+
         if not is_user_premium(user):
             raise serializers.ValidationError(
                 "Investor consultations are available only for premium users."
             )
+
         slot_id = attrs["slot_id"]
 
         try:
@@ -532,20 +535,3 @@ class InvestorBookingCreateSerializer(serializers.Serializer):
 
         attrs["slot"] = slot
         return attrs
-
-    def create(self, validated_data):
-
-        user = self.context["request"].user
-        slot = validated_data["slot"]
-
-        booking = InvestorBooking.objects.create(
-            user=user,
-            investor=slot.investor,
-            slot=slot,
-            start_datetime=slot.start_datetime,
-            end_datetime=slot.end_datetime,
-            duration_minutes=slot.duration_minutes,
-            status=InvestorBooking.STATUS_CONFIRMED,
-        )
-
-        return booking
