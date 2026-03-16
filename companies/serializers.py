@@ -110,10 +110,22 @@ class CompanyPostMediaSerializer(serializers.ModelSerializer):
 # =====================================================
 
 
+class CompanyPostCompanySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Company
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "logo",
+        ]
+
+
 class CompanyPostSerializer(serializers.ModelSerializer):
 
     author = serializers.StringRelatedField(read_only=True)
-
+    company = CompanyPostCompanySerializer(read_only=True)
     media = CompanyPostMediaSerializer(many=True, read_only=True)
 
     uploaded_files = serializers.ListField(

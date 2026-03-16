@@ -223,3 +223,28 @@ class CompanyPostMedia(models.Model):
 
     def __str__(self):
         return f"{self.media_type} - {self.post.title}"
+    
+
+
+#===========================================================
+# COMPANY POST SETTINGS MODEL
+#===========================================================
+class CompanyPostSettings(models.Model):
+
+    free_posts_per_company = models.PositiveIntegerField(default=5)
+
+    paid_post_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=100
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "Company Post Settings"
+
+    def save(self, *args, **kwargs):
+        if not self.pk and CompanyPostSettings.objects.exists():
+            raise ValidationError("Only one settings instance allowed")
+        super().save(*args, **kwargs)
