@@ -12,7 +12,8 @@ from .serializers import (
     CompanyMemberSerializer,
 )
 from .permissions import IsCompanyOwner, IsCompanyEditor
-
+from companies.services.post_limits import company_has_free_post
+from companies.models import CompanyPostSettings
 
 # =====================================================
 # PAGINATION
@@ -177,14 +178,25 @@ class CompanyPostCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated, IsCompanyEditor]
 
     def perform_create(self, serializer):
-
         company_id = self.kwargs["company_id"]
         company = get_object_or_404(Company, id=company_id)
 
         if company.status != "approved":
             raise PermissionDenied("Company is not allowed to create posts.")
 
-        serializer.save(company=company, author=self.request.user)
+        # check free post limit
+        if not company_has_free_post(company):
+
+            settings = CompanyPostSettings.objects.first()
+
+            raise PermissionDenied(
+                {
+                    "payment_required": True,
+                    "price": settings.paid_post_price if settings else 0,
+                }
+            )
+
+        serializer.save(company=company, author=self.request.user, is_paid=False)
 
 
 # =====================================================
