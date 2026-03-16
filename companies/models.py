@@ -13,6 +13,7 @@ User = settings.AUTH_USER_MODEL
 # COMPANY MODEL
 # =====================================================
 
+
 class Company(models.Model):
 
     STATUS_CHOICES = (
@@ -28,7 +29,9 @@ class Company(models.Model):
     slug = models.SlugField(unique=True, blank=True)
 
     logo = models.ImageField(upload_to="companies/logos/", null=True, blank=True)
-    cover_image = models.ImageField(upload_to="companies/covers/", null=True, blank=True)
+    cover_image = models.ImageField(
+        upload_to="companies/covers/", null=True, blank=True
+    )
 
     description = models.TextField(blank=True)
 
@@ -44,10 +47,7 @@ class Company(models.Model):
     )
 
     status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default="pending",
-        db_index=True
+        max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -84,6 +84,7 @@ class Company(models.Model):
 # COMPANY MEMBER MODEL
 # =====================================================
 
+
 class CompanyMember(models.Model):
 
     ROLE_CHOICES = (
@@ -94,17 +95,14 @@ class CompanyMember(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     company = models.ForeignKey(
-        Company,
-        on_delete=models.CASCADE,
-        related_name="members",
-        db_index=True
+        Company, on_delete=models.CASCADE, related_name="members", db_index=True
     )
 
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name="company_memberships",
-        db_index=True
+        db_index=True,
     )
 
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
@@ -121,7 +119,7 @@ class CompanyMember(models.Model):
             models.UniqueConstraint(
                 fields=["company"],
                 condition=Q(role="owner"),
-                name="unique_company_owner"
+                name="unique_company_owner",
             )
         ]
 
@@ -133,22 +131,17 @@ class CompanyMember(models.Model):
 # COMPANY POST MODEL
 # =====================================================
 
+
 class CompanyPost(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     company = models.ForeignKey(
-        Company,
-        on_delete=models.CASCADE,
-        related_name="posts",
-        db_index=True
+        Company, on_delete=models.CASCADE, related_name="posts", db_index=True
     )
 
     author = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="company_posts",
-        db_index=True
+        User, on_delete=models.CASCADE, related_name="company_posts", db_index=True
     )
 
     title = models.CharField(max_length=255)
@@ -156,6 +149,15 @@ class CompanyPost(models.Model):
     content = models.TextField()
 
     is_active = models.BooleanField(default=True)
+    is_paid = models.BooleanField(default=False)
+
+    payment = models.ForeignKey(
+        "payments.Payment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="company_posts",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -180,6 +182,7 @@ class CompanyPost(models.Model):
 # COMPANY POST MEDIA MODEL
 # =====================================================
 
+
 class CompanyPostMedia(models.Model):
 
     MEDIA_TYPE = (
@@ -190,10 +193,7 @@ class CompanyPostMedia(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     post = models.ForeignKey(
-        CompanyPost,
-        on_delete=models.CASCADE,
-        related_name="media",
-        db_index=True
+        CompanyPost, on_delete=models.CASCADE, related_name="media", db_index=True
     )
 
     file = models.FileField(upload_to="company_posts/")
@@ -223,21 +223,16 @@ class CompanyPostMedia(models.Model):
 
     def __str__(self):
         return f"{self.media_type} - {self.post.title}"
-    
 
 
-#===========================================================
+# ===========================================================
 # COMPANY POST SETTINGS MODEL
-#===========================================================
+# ===========================================================
 class CompanyPostSettings(models.Model):
 
     free_posts_per_company = models.PositiveIntegerField(default=5)
 
-    paid_post_price = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=100
-    )
+    paid_post_price = models.DecimalField(max_digits=10, decimal_places=2, default=100)
 
     updated_at = models.DateTimeField(auto_now=True)
 
