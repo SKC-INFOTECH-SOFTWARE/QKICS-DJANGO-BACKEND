@@ -18,11 +18,13 @@ class Payment(models.Model):
     PURPOSE_BOOKING = "BOOKING"
     PURPOSE_SUBSCRIPTION = "SUBSCRIPTION"
     PURPOSE_DOCUMENT = "DOCUMENT"
+    PURPOSE_COMPANY_POST = "COMPANY_POST"
 
     PURPOSE_CHOICES = (
         (PURPOSE_BOOKING, "Booking"),
         (PURPOSE_SUBSCRIPTION, "Subscription"),
         (PURPOSE_DOCUMENT, "Document"),
+        (PURPOSE_COMPANY_POST, "Company Post"),
     )
 
     STATUS_INITIATED = "INITIATED"
