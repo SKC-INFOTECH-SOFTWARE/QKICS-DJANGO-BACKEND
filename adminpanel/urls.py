@@ -24,6 +24,7 @@ from .views.companies import (
     AdminCompanyPostsView,
     AdminCompanyPostDeleteView,
 )
+from .views.company_settings import CompanyPostSettingsView
 
 urlpatterns = [
     # Admin user management
@@ -115,5 +116,13 @@ urlpatterns = [
         "company-posts/<uuid:uuid>/delete/",
         AdminCompanyPostDeleteView.as_view(),
         name="admin-company-post-delete",
+    ),
+    # =====================================================
+    # COMPANY SETTINGS
+    # =====================================================
+    path(
+        "company-settings/",
+        CompanyPostSettingsView.as_view(),
+        name="admin-company-settings",
     ),
 ]
