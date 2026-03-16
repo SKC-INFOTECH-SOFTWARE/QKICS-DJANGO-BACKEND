@@ -161,7 +161,7 @@ class CompanyRemoveEditorView(generics.DestroyAPIView):
         member = get_object_or_404(
             CompanyMember,
             company_id=company_id,
-            user_id=user_id,
+            user__uuid=user_id,
             role="editor",
         )
 
