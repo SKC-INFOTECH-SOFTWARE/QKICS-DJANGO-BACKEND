@@ -137,6 +137,7 @@ class CompanyPostSerializer(serializers.ModelSerializer):
 
         read_only_fields = [
             "id",
+            "company",
             "author",
             "created_at",
             "updated_at",
@@ -147,7 +148,7 @@ class CompanyPostSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         uploaded_files = validated_data.pop("uploaded_files", [])
 
-        post = CompanyPost.objects.create(author=request.user, **validated_data)
+        post = CompanyPost.objects.create(**validated_data)
 
         for file in uploaded_files:
             CompanyPostMedia.objects.create(post=post, file=file)
