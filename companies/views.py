@@ -15,6 +15,9 @@ from .permissions import IsCompanyOwner, IsCompanyEditor
 from companies.services.post_limits import company_has_free_post
 from companies.models import CompanyPostSettings
 
+from payments.services.fake import FakePaymentService
+from payments.models import Payment
+
 # =====================================================
 # PAGINATION
 # =====================================================
@@ -272,3 +275,42 @@ class CompanyPostDeleteView(generics.DestroyAPIView):
 
     def get_queryset(self):
         return CompanyPost.objects.filter(author=self.request.user)
+
+
+# =====================================================
+# CREATE PAID COMPANY POST
+# =====================================================
+
+
+class CompanyPaidPostCreateView(generics.CreateAPIView):
+
+    serializer_class = CompanyPostSerializer
+    permission_classes = [IsAuthenticated, IsCompanyEditor]
+
+    def perform_create(self, serializer):
+
+        company_id = self.kwargs["company_id"]
+        company = get_object_or_404(Company, id=company_id)
+
+        settings = CompanyPostSettings.objects.first()
+
+        if not settings:
+            raise PermissionDenied("Post settings not configured")
+
+        payment_service = FakePaymentService()
+
+        payment = payment_service.create_payment(
+            user=self.request.user,
+            purpose=Payment.PURPOSE_COMPANY_POST,
+            reference_id=company.id,
+            amount=settings.paid_post_price,
+        )
+
+        payment = payment_service.confirm_payment(payment=payment)
+
+        serializer.save(
+            company=company,
+            author=self.request.user,
+            is_paid=True,
+            payment=payment,
+        )
