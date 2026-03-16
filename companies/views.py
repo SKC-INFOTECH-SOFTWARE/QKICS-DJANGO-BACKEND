@@ -262,7 +262,10 @@ class CompanyPostUpdateView(generics.UpdateAPIView):
     permission_classes = [IsAuthenticated, IsCompanyEditor]
 
     def get_queryset(self):
-        return CompanyPost.objects.filter(author=self.request.user)
+        return CompanyPost.objects.filter(
+            company__members__user=self.request.user,
+            company__members__role__in=["owner", "editor"]
+        )   
 
 
 # =====================================================
@@ -274,7 +277,10 @@ class CompanyPostDeleteView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated, IsCompanyEditor]
 
     def get_queryset(self):
-        return CompanyPost.objects.filter(author=self.request.user)
+        return CompanyPost.objects.filter(
+            company__members__user=self.request.user,
+            company__members__role__in=["owner", "editor"]
+        )
 
 
 # =====================================================
