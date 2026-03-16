@@ -248,6 +248,7 @@ class CompanyPostFeedView(generics.ListAPIView):
             "company",
         )
         .prefetch_related("media")
+        .order_by("-is_paid", "-created_at")
     )
 
 
