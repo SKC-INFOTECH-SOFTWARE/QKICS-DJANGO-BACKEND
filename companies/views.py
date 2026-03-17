@@ -1,6 +1,6 @@
 from rest_framework import generics
 from django.shortcuts import get_object_or_404
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.pagination import CursorPagination
 from rest_framework.exceptions import PermissionDenied
@@ -56,9 +56,9 @@ class CompanyListView(generics.ListAPIView):
 # =====================================================
 
 
-class CompanyDetailView(generics.RetrieveAPIView):
+class CompanyDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = CompanySerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly, IsCompanyOwner]
     lookup_field = "slug"
 
     queryset = Company.objects.filter(status="approved").select_related("owner")
