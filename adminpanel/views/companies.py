@@ -19,7 +19,6 @@ from adminpanel.pagination import AdminCursorPagination
 
 
 class AdminCompanyListView(generics.ListAPIView):
-
     queryset = Company.objects.select_related("owner").all().order_by("-created_at")
     serializer_class = AdminCompanySerializer
     permission_classes = [IsAdminUser]
@@ -32,11 +31,10 @@ class AdminCompanyListView(generics.ListAPIView):
 
 
 class AdminCompanyDetailView(generics.RetrieveAPIView):
-
     queryset = Company.objects.all()
     serializer_class = AdminCompanySerializer
     permission_classes = [IsAdminUser]
-    lookup_field = "uuid"
+    lookup_field = "id"
 
 
 # =====================================================
@@ -45,11 +43,10 @@ class AdminCompanyDetailView(generics.RetrieveAPIView):
 
 
 class AdminCompanyUpdateView(generics.UpdateAPIView):
-
     queryset = Company.objects.all()
     serializer_class = AdminCompanySerializer
     permission_classes = [IsAdminUser]
-    lookup_field = "uuid"
+    lookup_field = "id"
 
 
 # =====================================================
@@ -58,11 +55,10 @@ class AdminCompanyUpdateView(generics.UpdateAPIView):
 
 
 class AdminCompanyDeleteView(generics.DestroyAPIView):
-
     queryset = Company.objects.all()
     serializer_class = AdminCompanySerializer
     permission_classes = [IsAdminUser]
-    lookup_field = "uuid"
+    lookup_field = "id"
 
 
 # =====================================================
@@ -71,16 +67,14 @@ class AdminCompanyDeleteView(generics.DestroyAPIView):
 
 
 class AdminCompanyMembersView(generics.ListAPIView):
-
     serializer_class = AdminCompanyMemberSerializer
     permission_classes = [IsAdminUser]
     pagination_class = AdminCursorPagination
 
     def get_queryset(self):
+        company_id = self.kwargs["company_uuid"]
 
-        company_uuid = self.kwargs["company_uuid"]
-
-        company = get_object_or_404(Company, uuid=company_uuid)
+        company = get_object_or_404(Company, id=company_id)
 
         return CompanyMember.objects.filter(company=company).select_related("user")
 
@@ -91,11 +85,10 @@ class AdminCompanyMembersView(generics.ListAPIView):
 
 
 class AdminCompanyMemberRemoveView(generics.DestroyAPIView):
-
     queryset = CompanyMember.objects.all()
     serializer_class = AdminCompanyMemberSerializer
     permission_classes = [IsAdminUser]
-    lookup_field = "uuid"
+    lookup_field = "id"
 
 
 # =====================================================
@@ -104,16 +97,14 @@ class AdminCompanyMemberRemoveView(generics.DestroyAPIView):
 
 
 class AdminCompanyPostsView(generics.ListAPIView):
-
     serializer_class = AdminCompanyPostSerializer
     permission_classes = [IsAdminUser]
     pagination_class = AdminCursorPagination
 
     def get_queryset(self):
+        company_id = self.kwargs["company_uuid"]
 
-        company_uuid = self.kwargs["company_uuid"]
-
-        company = get_object_or_404(Company, uuid=company_uuid)
+        company = get_object_or_404(Company, id=company_id)
 
         return (
             CompanyPost.objects.filter(company=company)
@@ -128,8 +119,7 @@ class AdminCompanyPostsView(generics.ListAPIView):
 
 
 class AdminCompanyPostDeleteView(generics.DestroyAPIView):
-
     queryset = CompanyPost.objects.all()
     serializer_class = AdminCompanyPostSerializer
     permission_classes = [IsAdminUser]
-    lookup_field = "uuid"
+    lookup_field = "id"

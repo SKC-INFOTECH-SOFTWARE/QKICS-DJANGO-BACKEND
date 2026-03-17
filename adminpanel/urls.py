@@ -77,17 +77,17 @@ urlpatterns = [
     # =====================================================
     path("companies/", AdminCompanyListView.as_view(), name="admin-companies-list"),
     path(
-        "companies/<uuid:uuid>/",
+        "companies/<uuid:id>/",
         AdminCompanyDetailView.as_view(),
         name="admin-company-detail",
     ),
     path(
-        "companies/<uuid:uuid>/update/",
+        "companies/<uuid:id>/update/",
         AdminCompanyUpdateView.as_view(),
         name="admin-company-update",
     ),
     path(
-        "companies/<uuid:uuid>/delete/",
+        "companies/<uuid:id>/delete/",
         AdminCompanyDeleteView.as_view(),
         name="admin-company-delete",
     ),
@@ -100,7 +100,7 @@ urlpatterns = [
         name="admin-company-members",
     ),
     path(
-        "company-members/<uuid:uuid>/remove/",
+        "company-members/<uuid:id>/remove/",
         AdminCompanyMemberRemoveView.as_view(),
         name="admin-remove-member",
     ),
@@ -113,7 +113,7 @@ urlpatterns = [
         name="admin-company-posts",
     ),
     path(
-        "company-posts/<uuid:uuid>/delete/",
+        "company-posts/<uuid:id>/delete/",
         AdminCompanyPostDeleteView.as_view(),
         name="admin-company-post-delete",
     ),
