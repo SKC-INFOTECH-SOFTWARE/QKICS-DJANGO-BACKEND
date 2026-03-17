@@ -90,7 +90,7 @@ class AdminCompanyMemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CompanyMember
-        fields = ["uuid", "user", "role", "joined_at"]
+        fields = ["id", "user", "role", "joined_at"]
 
 
 class AdminCompanyPostSerializer(serializers.ModelSerializer):
@@ -99,4 +99,4 @@ class AdminCompanyPostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CompanyPost
-        fields = ["uuid", "author", "content", "created_at", "updated_at"]
+        fields = ["id", "author", "content", "created_at", "updated_at"]

@@ -10,7 +10,7 @@ from adminpanel.serializers import (
     AdminCompanyPostSerializer,
 )
 
-from adminpanel.pagination import AdminCursorPagination
+from adminpanel.pagination import AdminCursorPagination, AdminMemberCursorPagination
 
 
 # =====================================================
@@ -69,7 +69,7 @@ class AdminCompanyDeleteView(generics.DestroyAPIView):
 class AdminCompanyMembersView(generics.ListAPIView):
     serializer_class = AdminCompanyMemberSerializer
     permission_classes = [IsAdminUser]
-    pagination_class = AdminCursorPagination
+    pagination_class = AdminMemberCursorPagination
 
     def get_queryset(self):
         company_id = self.kwargs["company_uuid"]
