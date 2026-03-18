@@ -14,6 +14,7 @@ class AdminUserListView(ListAPIView):
     """
     Admin: List all users with search and ordering support.
     """
+
     queryset = User.objects.all().order_by("-created_at")
     serializer_class = AdminFullUserSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
