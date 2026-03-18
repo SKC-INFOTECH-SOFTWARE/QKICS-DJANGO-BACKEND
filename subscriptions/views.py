@@ -16,6 +16,7 @@ from subscriptions.serializers import (
 from subscriptions.services.access import get_active_subscription
 from notifications.services.events import notify_subscription_activated
 
+
 class SubscriptionPlanListView(generics.ListAPIView):
     """
     Public API to list all active subscription plans.
