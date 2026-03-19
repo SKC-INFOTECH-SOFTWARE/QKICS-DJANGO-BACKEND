@@ -1,6 +1,10 @@
 from rest_framework import generics
 from django.shortcuts import get_object_or_404
-from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import (
+    IsAuthenticated,
+    AllowAny,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework.response import Response
 from rest_framework.pagination import CursorPagination
 from rest_framework.exceptions import PermissionDenied
@@ -16,6 +20,10 @@ from companies.services.post_limits import company_has_free_post
 from companies.models import CompanyPostSettings
 
 from companies.services.company_post_payment import process_company_post_payment
+from notifications.services.events import (
+    notify_company_member_added,
+    notify_company_member_removed,
+)
 
 # =====================================================
 # PAGINATION
@@ -141,7 +149,7 @@ class CompanyAddEditorView(generics.CreateAPIView):
             )
 
         serializer = self.get_serializer(member)
-
+        notify_company_member_added(company, member.user)
         return Response(serializer.data)
 
 
@@ -164,7 +172,7 @@ class CompanyRemoveEditorView(generics.DestroyAPIView):
             user__uuid=user_id,
             role="editor",
         )
-
+        notify_company_member_removed(member.company, member.user)
         member.delete()
 
         return Response({"detail": "Editor removed successfully"})
@@ -264,8 +272,8 @@ class CompanyPostUpdateView(generics.UpdateAPIView):
     def get_queryset(self):
         return CompanyPost.objects.filter(
             company__members__user=self.request.user,
-            company__members__role__in=["owner", "editor"]
-        )   
+            company__members__role__in=["owner", "editor"],
+        )
 
 
 # =====================================================
@@ -279,7 +287,7 @@ class CompanyPostDeleteView(generics.DestroyAPIView):
     def get_queryset(self):
         return CompanyPost.objects.filter(
             company__members__user=self.request.user,
-            company__members__role__in=["owner", "editor"]
+            company__members__role__in=["owner", "editor"],
         )
 
 
