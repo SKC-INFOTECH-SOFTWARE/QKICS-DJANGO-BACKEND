@@ -12,8 +12,7 @@ def get_active_subscription(user):
     now = timezone.now()
 
     return (
-        UserSubscription.objects
-        .filter(
+        UserSubscription.objects.filter(
             user=user,
             is_active=True,
             start_date__lte=now,
@@ -32,17 +31,23 @@ def is_user_premium(user):
 
 
 def remaining_premium_docs(user):
-    """
-    Returns remaining premium document downloads for the month.
-    """
+    from django.utils import timezone
+    from documents.models import DocumentDownload
+
     sub = get_active_subscription(user)
     if not sub:
         return 0
 
-    remaining = (
-        sub.plan.premium_doc_limit_per_month
-        - sub.premium_docs_used_this_month
-    )
+    now = timezone.now()
+    first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    used = DocumentDownload.objects.filter(
+        user=user,
+        downloaded_at__gte=first_day,
+        access_type_snapshot="PREMIUM",
+    ).count()
+
+    remaining = sub.plan.premium_doc_limit_per_month - used
     return max(0, remaining)
 
 
@@ -65,7 +70,4 @@ def can_chat_with_expert(user):
     if not sub:
         return False
 
-    return (
-        sub.chats_used_this_month
-        < sub.plan.free_chat_per_month
-    )
+    return sub.chats_used_this_month < sub.plan.free_chat_per_month
