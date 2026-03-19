@@ -11,8 +11,8 @@ urlpatterns = [
     path("stages/", StartupStageListView.as_view(), name="stage-list"),
     path("admin/create/", AdminCreateInvestorView.as_view(), name="admin-create-investor"),
     path("admin/verify/<int:investor_id>/", AdminVerifyInvestorView.as_view(), name="admin-verify-investor"),
-    path("<str:username>/", InvestorDetailView.as_view(), name="investor-detail"),
     path("me/profile/", InvestorProfileSelfView.as_view(), name="investor-profile-self"),
+    path("<str:username>/", InvestorDetailView.as_view(), name="investor-detail"),
     
     path("admin/create-profile/", AdminCreateInvestorProfileView.as_view(), name="admin-create-investor-profile"),
 ]
