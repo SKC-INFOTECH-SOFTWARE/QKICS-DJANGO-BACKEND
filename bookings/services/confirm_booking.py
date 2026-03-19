@@ -38,7 +38,7 @@ def confirm_booking_after_payment(*, payment: Payment):
         # STEP 3: create chat room
         chat_room = get_or_create_chat_room(
             user=booking.user,
-            expert=booking.expert,
+            advisor=booking.expert,
         )
 
         # store room id for quick lookup

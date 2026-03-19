@@ -9,7 +9,7 @@ def create_investor_booking(*, user, slot):
     # create chat room
     chat_room = get_or_create_chat_room(
         user=user,
-        investor=slot.investor,
+        advisor=slot.investor,
     )
 
     # create booking
