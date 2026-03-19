@@ -31,7 +31,7 @@ from users.serializers import PublicUserProfileSerializer
 from django.shortcuts import get_object_or_404
 
 # ------------------------------------------------------------------------
-from notifications.services.client import notify_welcome_user, notify_password_changed  
+from notifications.services.events import notify_welcome_user, notify_password_changed
 
 
 # ────────────────────── REGISTER API ──────────────────────
