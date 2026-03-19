@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from django.db.models import Count, Q
 from django.utils import timezone
 from users.permissions import IsAdmin
-from .models import SubscriptionPlan
-from .serializers import SubscriptionPlanAdminSerializer
+from ..models import SubscriptionPlan
+from ..serializers import SubscriptionPlanAdminSerializer
 
 
 # =====================================================

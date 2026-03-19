@@ -1,5 +1,5 @@
 from django.urls import path
-from .views_admin import (
+from subscriptions.views.views_admin import (
     AdminSubscriptionPlanListCreateView,
     AdminSubscriptionPlanDetailView,
 )
