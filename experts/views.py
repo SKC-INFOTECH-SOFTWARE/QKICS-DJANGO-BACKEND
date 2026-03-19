@@ -125,9 +125,6 @@ class ExpertProfileSelfView(APIView):
                 status=400,
             )
 
-        if hasattr(request.user, "expert_profile"):
-            return Response({"error": "Expert profile already exists"}, status=400)
-
         # create profile if not exists
         if hasattr(request.user, "expert_profile"):
             return Response(

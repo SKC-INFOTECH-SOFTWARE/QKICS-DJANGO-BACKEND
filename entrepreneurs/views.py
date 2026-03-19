@@ -81,9 +81,6 @@ class EntrepreneurProfileSelfView(APIView):
                 {"error": "Entrepreneur profile already exists"}, status=400
             )
 
-        if hasattr(request.user, "entrepreneur_profile"):
-            return Response({"detail": "Profile already exists."}, status=400)
-
         serializer = EntrepreneurProfileWriteSerializer(data=request.data)
         if serializer.is_valid():
             profile = serializer.save(user=request.user)
