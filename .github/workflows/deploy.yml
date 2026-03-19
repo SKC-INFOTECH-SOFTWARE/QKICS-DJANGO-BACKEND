@@ -45,7 +45,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.prod # Specific Dockerfile mention kiya hai
+          file: ./Dockerfile.prod 
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/qkics_backend:latest
           cache-from: type=gha
@@ -64,8 +64,9 @@ jobs:
           DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }} # Aapke secret ka naam VPS_USER tha
+          username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
           envs: DOCKER_USERNAME,DOCKER_PASSWORD,DEPLOY_PATH
           script: |
             set -e
