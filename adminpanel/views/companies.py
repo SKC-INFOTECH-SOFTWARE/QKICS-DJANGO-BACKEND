@@ -11,7 +11,10 @@ from adminpanel.serializers import (
 )
 
 from adminpanel.pagination import AdminCursorPagination, AdminMemberCursorPagination
-
+from notifications.services.events import (
+    notify_company_approved,
+    notify_company_rejected,
+)
 
 # =====================================================
 # LIST ALL COMPANIES
@@ -47,6 +50,18 @@ class AdminCompanyUpdateView(generics.UpdateAPIView):
     serializer_class = AdminCompanySerializer
     permission_classes = [IsAdminUser]
     lookup_field = "id"
+
+    def perform_update(self, serializer):
+        old_status = self.get_object().status
+        company = serializer.save()
+        new_status = company.status
+
+        # Fire notification only when status actually changes
+        if old_status != new_status:
+            if new_status == "approved":
+                notify_company_approved(company)
+            elif new_status == "rejected":
+                notify_company_rejected(company)
 
 
 # =====================================================
