@@ -1,6 +1,10 @@
 from django.db import transaction
 from bookings.models import InvestorBooking
 from chat.services.create_room import get_or_create_chat_room
+from notifications.services.events import (
+    notify_investor_booking_created,
+    notify_investor_booking_confirmed,
+)
 
 
 @transaction.atomic
@@ -23,5 +27,7 @@ def create_investor_booking(*, user, slot):
         status=InvestorBooking.STATUS_CONFIRMED,
         chat_room_id=chat_room.id,
     )
+    notify_investor_booking_created(booking)
+    notify_investor_booking_confirmed(booking)
 
     return booking

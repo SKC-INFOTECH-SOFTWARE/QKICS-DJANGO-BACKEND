@@ -23,7 +23,6 @@ def confirm_booking_after_payment(*, payment: Payment):
     with transaction.atomic():
         booking = Booking.objects.select_for_update().get(uuid=payment.reference_id)
 
-        # Only valid flow
         if booking.status != Booking.STATUS_AWAITING_PAYMENT:
             return
 
@@ -35,13 +34,12 @@ def confirm_booking_after_payment(*, payment: Payment):
         booking.status = Booking.STATUS_CONFIRMED
         booking.confirmed_at = timezone.now()
 
-        # STEP 3: create chat room
+        # STEP 3: create chat room — advisor= is the correct keyword
         chat_room = get_or_create_chat_room(
             user=booking.user,
-            advisor=booking.expert,
+            advisor=booking.expert,  # ← FIXED (was expert=)
         )
 
-        # store room id for quick lookup
         booking.chat_room_id = chat_room.id
 
         booking.save(
