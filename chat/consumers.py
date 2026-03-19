@@ -3,6 +3,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer  # type: ignore
 from asgiref.sync import sync_to_async as database_sync_to_async
 from django.contrib.auth import get_user_model
 from .models import ChatRoom, Message, ReadReceipt
+from notifications.services.events import notify_new_message
 
 User = get_user_model()
 
@@ -152,7 +153,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         room.last_message_at = message.timestamp
         room.save(update_fields=["last_message_at"])
-
+        recipient = room.advisor if room.user == self.user else room.user
+        notify_new_message(message, recipient)
         return message
 
     @database_sync_to_async
