@@ -31,6 +31,11 @@ def is_user_premium(user):
 
 
 def remaining_premium_docs(user):
+    """
+    Returns remaining premium document downloads for this month.
+    Counts from DocumentDownload records — the UserSubscription model
+    does NOT have a premium_docs_used_this_month field.
+    """
     from django.utils import timezone
     from documents.models import DocumentDownload
 
@@ -39,15 +44,15 @@ def remaining_premium_docs(user):
         return 0
 
     now = timezone.now()
-    first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    first_day_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    used = DocumentDownload.objects.filter(
+    used_this_month = DocumentDownload.objects.filter(
         user=user,
-        downloaded_at__gte=first_day,
+        downloaded_at__gte=first_day_of_month,
         access_type_snapshot="PREMIUM",
     ).count()
 
-    remaining = sub.plan.premium_doc_limit_per_month - used
+    remaining = sub.plan.premium_doc_limit_per_month - used_this_month
     return max(0, remaining)
 
 
