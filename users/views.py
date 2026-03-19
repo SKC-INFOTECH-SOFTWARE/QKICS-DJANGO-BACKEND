@@ -17,7 +17,7 @@ from .serializers import (
     LogoutSerializer,
 )
 from users.pagination import UserSearchCursorPagination
-
+from notifications.services.events import notify_welcome_user
 
 # Public Profile access includes ---------------------------------------
 from experts.models import ExpertProfile
@@ -31,7 +31,7 @@ from users.serializers import PublicUserProfileSerializer
 from django.shortcuts import get_object_or_404
 
 # ------------------------------------------------------------------------
-from notifications.services.client import unregister_push_token
+from notifications.services.client import notify_welcome_user, notify_password_changed  
 
 
 # ────────────────────── REGISTER API ──────────────────────
@@ -42,6 +42,7 @@ class RegisterAPIView(APIView):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
+            notify_welcome_user(user)
             return Response(
                 {
                     "message": "User registered successfully.",
@@ -164,6 +165,7 @@ class PasswordChangeAPIView(APIView):
         )
         if serializer.is_valid():
             serializer.save()
+            notify_password_changed(request.user)
             return Response(
                 {"message": "Password changed successfully."},
                 status=status.HTTP_200_OK,
