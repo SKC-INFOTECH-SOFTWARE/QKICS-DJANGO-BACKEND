@@ -3,11 +3,17 @@ from .client import send_notification
 
 
 def _async(fn, *args, **kwargs):
-    """
-    Run notification sending in a background thread so it never blocks the request.
-    NOTE: Plan to replace this with Celery tasks in Phase 5.
-    """
-    t = threading.Thread(target=fn, args=args, kwargs=kwargs, daemon=True)
+    def wrapper(*a, **kw):
+        from django import db
+        db.connection.close()  # force a fresh connection in this thread
+        try:
+            fn(*a, **kw)
+        except Exception:
+            import traceback, logging
+            logging.getLogger(__name__).error(
+                "Notification thread error: %s", traceback.format_exc()
+            )
+    t = threading.Thread(target=wrapper, args=args, kwargs=kwargs, daemon=True)
     t.start()
 
 

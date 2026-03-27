@@ -128,10 +128,6 @@ class CompanyPostSerializer(serializers.ModelSerializer):
     company = CompanyPostCompanySerializer(read_only=True)
     media = CompanyPostMediaSerializer(many=True, read_only=True)
 
-    uploaded_files = serializers.ListField(
-        child=serializers.FileField(), write_only=True, required=False
-    )
-
     class Meta:
         model = CompanyPost
         fields = [
@@ -141,7 +137,6 @@ class CompanyPostSerializer(serializers.ModelSerializer):
             "title",
             "content",
             "media",
-            "uploaded_files",
             "created_at",
             "updated_at",
             "is_active",
@@ -153,16 +148,17 @@ class CompanyPostSerializer(serializers.ModelSerializer):
             "author",
             "created_at",
             "updated_at",
+            "is_active",
         ]
 
     def create(self, validated_data):
-
-        request = self.context["request"]
-        uploaded_files = validated_data.pop("uploaded_files", [])
+        request = self.context.get("request")
 
         post = CompanyPost.objects.create(**validated_data)
+        if request and request.FILES:
+            files = request.FILES.getlist("uploaded_files")
 
-        for file in uploaded_files:
-            CompanyPostMedia.objects.create(post=post, file=file)
+            for file in files:
+                CompanyPostMedia.objects.create(post=post, file=file)
 
         return post

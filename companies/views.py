@@ -24,6 +24,7 @@ from notifications.services.events import (
     notify_company_member_added,
     notify_company_member_removed,
 )
+from rest_framework.parsers import MultiPartParser, FormParser
 
 # =====================================================
 # PAGINATION
@@ -186,6 +187,7 @@ class CompanyRemoveEditorView(generics.DestroyAPIView):
 class CompanyPostCreateView(generics.CreateAPIView):
     serializer_class = CompanyPostSerializer
     permission_classes = [IsAuthenticated, IsCompanyEditor]
+    parser_classes = [MultiPartParser, FormParser]
 
     def perform_create(self, serializer):
         company_id = self.kwargs["company_id"]
