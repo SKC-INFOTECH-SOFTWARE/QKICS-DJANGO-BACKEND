@@ -1,11 +1,22 @@
 version: '3.8'
+
 services:
+
+  # ─────────────────────────────────────────────────────────
+  # Redis
+  # ─────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: Qkics-Redis
     restart: unless-stopped
     network_mode: host
-    command: redis-server --bind 127.0.0.1 --port 6380 --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: >
+      redis-server
+      --bind 127.0.0.1
+      --port 6380
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     healthcheck:
@@ -14,8 +25,10 @@ services:
       timeout: 3s
       retries: 3
 
+  # ─────────────────────────────────────────────────────────
+  # Django
+  # ─────────────────────────────────────────────────────────
   django:
-    
     image: ${DOCKER_USERNAME}/qkics_backend:latest
     container_name: Qkics-Backend
     env_file:
@@ -25,9 +38,9 @@ services:
     volumes:
       - ./staticfiles:/app/staticfiles
       - ./media:/app/media
+      - ./recordings:/recordings     # ← webhook reads MP4 from here to upload to Cloudinary
     restart: unless-stopped
     network_mode: host
-    # 🟢 VPS CPU/RAM Protection
     deploy:
       resources:
         limits:
@@ -35,6 +48,53 @@ services:
           memory: 4G
     depends_on:
       redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/admin/login/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─────────────────────────────────────────────────────────
+  # LiveKit SFU Server
+  # ─────────────────────────────────────────────────────────
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: Qkics-LiveKit
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - LIVEKIT_CONFIG=/etc/livekit/livekit.yaml
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────────────────
+  # LiveKit Egress (Recording)
+  # Saves MP4 to /recordings/ → Django uploads to Cloudinary
+  # ─────────────────────────────────────────────────────────
+  livekit-egress:
+    image: livekit/egress:latest
+    container_name: Qkics-Egress
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - SYS_ADMIN          # Chrome sandbox ke liye zaruri
+    shm_size: '1gb'        # Chrome needs shared memory
+    environment:
+      - EGRESS_CONFIG_FILE=/etc/egress/egress.yaml
+    volumes:
+      - ./livekit/egress.yaml:/etc/egress/egress.yaml:ro
+      - ./recordings:/recordings    # ← MP4 files yahan save hoti hain
+    depends_on:
+      livekit:
         condition: service_healthy
 
 volumes:

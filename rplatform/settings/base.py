@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     "channels",
     "whitenoise",
     "django_filters",
-    
+
     # Local apps
     "users",
     "experts",
@@ -51,6 +51,8 @@ INSTALLED_APPS = [
     "notifications",
     "ads",
     "companies",
+    "calls",
+    "django_apscheduler",
 ]
 
 # ==================================================
@@ -110,6 +112,24 @@ DATABASES = {
         },
     }
 }
+
+# ==================================================
+# APScheduler
+# ==================================================
+APScheduler_CONFIG = {
+    "apscheduler.timezone": "Asia/Kolkata",
+    "apscheduler.jobstores.default": {
+        "BACKEND": "django_apscheduler.db.DjangoJobStore",
+    },
+    "apscheduler.executors.default": {
+        "BACKEND": "django_apscheduler.executors.ThreadPoolExecutor",
+        "OPTIONS": {
+            "max_workers": 5,
+        },
+    },
+}
+
+
 
 # ==================================================
 # AUTH USER MODEL
@@ -196,3 +216,14 @@ NOTIFICATION_SERVICE_URL = config("NOTIFICATION_SERVICE_URL", default="http://19
 NOTIFICATION_API_KEY = config("NOTIFICATION_API_KEY", default="")
 
 DEFAULT_CHANNELS = ["IN_APP", "PUSH"]
+
+
+LIVEKIT_URL        = config("LIVEKIT_URL", ...)
+LIVEKIT_API_KEY    = config("LIVEKIT_API_KEY", ...)
+LIVEKIT_API_SECRET = config("LIVEKIT_API_SECRET", ...)
+CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", ...)
+CLOUDINARY_API_KEY    = config("CLOUDINARY_API_KEY", ...)
+CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", ...)
+TURN_HOST     = config("TURN_HOST", default="")
+TURN_USERNAME = config("TURN_USERNAME", default="")
+TURN_PASSWORD = config("TURN_PASSWORD", default="")

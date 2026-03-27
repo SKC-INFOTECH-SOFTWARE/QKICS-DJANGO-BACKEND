@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── Job 1: Test & Lint (Aapka purana step) ──
+
   test:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
@@ -24,7 +24,6 @@ jobs:
           pip install flake8
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
 
-  # ── Job 2: Build & Push on GitHub (Zero load on VPS) ──
   build-and-push:
     needs: test
     runs-on: ubuntu-latest
@@ -45,13 +44,12 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.prod 
+          file: ./Dockerfile.prod
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/qkics_backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Job 3: Deploy to VPS ──
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -61,59 +59,60 @@ jobs:
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+          DEPLOY_PATH:     ${{ secrets.VPS_DEPLOY_PATH }}
         with:
-          host: ${{ secrets.VPS_HOST }}
+          host:     ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: 22
-          envs: DOCKER_USERNAME,DOCKER_PASSWORD,DEPLOY_PATH
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          envs:     DOCKER_USERNAME,DOCKER_PASSWORD,DEPLOY_PATH
           script: |
             set -e
             cd $DEPLOY_PATH
-            
-            export DOCKER_USERNAME="${DOCKER_USERNAME}"
-            export DOCKER_PASSWORD="${DOCKER_PASSWORD}"
-            
+
             if [ -z "$DOCKER_PASSWORD" ]; then
-              echo "❌ ERROR: DOCKER_PASSWORD is empty!"
+              echo "ERROR: DOCKER_PASSWORD is empty!"
               exit 1
             fi
-            
-            # Login to Docker
+
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-            
-            # Code pull for configs and entrypoint scripts
+
             git pull origin main
-            
+
+            mkdir -p livekit staticfiles media recordings
+
             echo "--- Pulling latest image ---"
             sudo docker compose -f docker-compose.prod.yml pull
-            
+
             echo "--- Restarting containers ---"
             sudo docker compose -f docker-compose.prod.yml down
             sudo docker compose -f docker-compose.prod.yml up -d
-            
-            echo "--- Waiting for startup ---"
-            sleep 30
-            
-            echo "--- Fixing permissions & Reloading Nginx ---"
-            sudo chown -R www-data:www-data media staticfiles || true
-            sudo systemctl reload nginx || true
-            
-            echo "--- Running Health Check ---"
-            for i in $(seq 1 10); do
-              echo "Health check attempt $i/10..."
+
+            echo "--- Waiting 45s ---"
+            sleep 45
+
+            sudo chown -R www-data:www-data staticfiles media || true
+            sudo chmod -R 755 recordings || true
+
+            echo "--- Health check ---"
+            for i in $(seq 1 12); do
+              echo "Attempt $i/12..."
               if curl -sf http://localhost:9000/admin/login/ > /dev/null; then
-                echo "✅ Health check passed!"
+                echo "Health check passed!"
                 break
               fi
-              if [ $i -eq 10 ]; then
-                echo "❌ Health check failed after 10 attempts"
+              if [ $i -eq 12 ]; then
+                echo "Health check FAILED"
                 sudo docker compose -f docker-compose.prod.yml logs --tail=50 django
                 exit 1
               fi
               sleep 10
             done
-            
-            echo "✅ Deployment Successful! Cleaning up..."
+
+            echo "--- Setup cron job ---"
+            CRON_JOB="0 2 * * * cd $DEPLOY_PATH && docker compose -f docker-compose.prod.yml exec -T django python manage.py cleanup_recordings >> /var/log/qkics_cleanup.log 2>&1"
+            (crontab -l 2>/dev/null | grep -q "cleanup_recordings") || \
+              (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+            echo "Cron job set."
+
             sudo docker image prune -f
+            echo "Deployment complete!"

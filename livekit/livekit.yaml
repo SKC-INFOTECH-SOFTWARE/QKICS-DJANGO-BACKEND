@@ -1,0 +1,36 @@
+# livekit/livekit.yaml
+# ─────────────────────────────────────────────────────────
+# REQUIRED CHANGES:
+#   1. LIVEKIT_API_KEY_PLACEHOLDER
+#   2. LIVEKIT_API_SECRET_PLACEHOLDER
+#   3. YOUR_DOMAIN_HERE
+#
+# Key generate karo:
+#   python -c "import secrets; print(secrets.token_hex(16))"
+#  
+# ─────────────────────────────────────────────────────────
+
+port: 7880
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+
+redis:
+  address: 127.0.0.1:6380
+
+keys:
+  18ca5e94d6f9d3af05323e9e0aa5a294: 99ced558616d7f89507f4a4c5dff0571
+
+webhook_urls:
+  - https://qkicsbackend.matchb.online/api/v1/calls/livekit/webhook/
+
+room:
+  auto_create: true
+  empty_timeout: 300
+  departure_timeout: 20
+
+logging:
+  level: info
