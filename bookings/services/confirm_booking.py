@@ -1,4 +1,3 @@
-import uuid
 from django.db import transaction
 from django.utils import timezone
 
@@ -9,14 +8,8 @@ from notifications.services.events import notify_booking_confirmed
 
 
 def confirm_booking_after_payment(*, payment: Payment):
-    """
-    Called after payment SUCCESS.
-    Creates chat room and confirms booking.
-    """
-
     if payment.status != Payment.STATUS_SUCCESS:
         return
-
     if payment.purpose != Payment.PURPOSE_BOOKING:
         return
 
@@ -26,29 +19,26 @@ def confirm_booking_after_payment(*, payment: Payment):
         if booking.status != Booking.STATUS_AWAITING_PAYMENT:
             return
 
-        # STEP 1: mark paid
-        booking.status = Booking.STATUS_PAID
-        booking.paid_at = timezone.now()
-
-        # STEP 2: confirm booking
-        booking.status = Booking.STATUS_CONFIRMED
+        booking.status       = Booking.STATUS_PAID
+        booking.paid_at      = timezone.now()
+        booking.status       = Booking.STATUS_CONFIRMED
         booking.confirmed_at = timezone.now()
 
-        # STEP 3: create chat room — advisor= is the correct keyword
-        chat_room = get_or_create_chat_room(
-            user=booking.user,
-            advisor=booking.expert,  # ← FIXED (was expert=)
-        )
-
+        chat_room = get_or_create_chat_room(user=booking.user, advisor=booking.expert)
         booking.chat_room_id = chat_room.id
 
-        booking.save(
-            update_fields=[
-                "status",
-                "paid_at",
-                "confirmed_at",
-                "chat_room_id",
-                "updated_at",
-            ]
-        )
+        booking.save(update_fields=[
+            "status", "paid_at", "confirmed_at", "chat_room_id", "updated_at"
+        ])
+
+        # Video call room + recording + auto-cut (non-critical)
+        try:
+            from calls.views import create_call_room_for_booking
+            create_call_room_for_booking(booking=booking)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "CallRoom creation failed for booking %s", booking.uuid
+            )
+
         notify_booking_confirmed(booking)

@@ -1,0 +1,27 @@
+# livekit/egress.yaml
+# ─────────────────────────────────────────────────────────
+# REQUIRED CHANGES:
+#   1. LIVEKIT_API_KEY_PLACEHOLDER →
+#   2. LIVEKIT_API_SECRET_PLACEHOLDER → 
+#
+# Recording flow:
+#   LiveKit Egress → /recordings/<room_id>.mp4 (local Docker volume)
+#   egress_ended webhook → Django uploads to Cloudinary → local file delete
+# ─────────────────────────────────────────────────────────
+
+api_key:    18ca5e94d6f9d3af05323e9e0aa5a294
+api_secret: 99ced558616d7f89507f4a4c5dff0571
+
+ws_url: ws://localhost:7880
+
+redis:
+  address: 127.0.0.1:6380
+
+health_port:   7880
+template_port: 7980
+
+# false = no seccomp profile (works with cap_add: SYS_ADMIN in docker-compose)
+enable_chrome_sandbox: false
+
+logging:
+  level: info

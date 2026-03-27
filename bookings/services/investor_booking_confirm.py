@@ -9,6 +9,7 @@ from notifications.services.events import (
 
 @transaction.atomic
 def create_investor_booking(*, user, slot):
+    chat_room = get_or_create_chat_room(user=user, advisor=slot.investor)
 
     # create chat room
     chat_room = get_or_create_chat_room(
@@ -29,5 +30,14 @@ def create_investor_booking(*, user, slot):
     )
     notify_investor_booking_created(booking)
     notify_investor_booking_confirmed(booking)
+
+    try:
+        from calls.views import create_call_room_for_investor_booking
+        create_call_room_for_investor_booking(investor_booking=booking)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception(
+            "CallRoom creation failed for investor booking %s", booking.uuid
+        )
 
     return booking
