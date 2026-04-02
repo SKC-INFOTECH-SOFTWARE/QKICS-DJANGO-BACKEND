@@ -33,7 +33,7 @@ def confirm_booking_after_payment(*, payment: Payment):
 
         # Video call room + recording + auto-cut (non-critical)
         try:
-            from calls.views import create_call_room_for_booking
+            from calls.services.call_room_service import create_call_room_for_booking
             create_call_room_for_booking(booking=booking)
         except Exception:
             import logging

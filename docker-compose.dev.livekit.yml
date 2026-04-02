@@ -1,0 +1,41 @@
+services:
+
+  # ─────────────────────────────────────────────────────────
+  # LiveKit SFU Server
+  # Config is passed as a CLI argument, NOT via LIVEKIT_CONFIG env var
+  # (env var is not supported in livekit-server v1.7.2)
+  # ─────────────────────────────────────────────────────────
+  livekit:
+    image: livekit/livekit-server:v1.7.2
+    container_name: Qkics-LiveKit
+    restart: unless-stopped
+    network_mode: host
+    command: --config /etc/livekit/livekit.yaml
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────
+  # LiveKit Egress (Recording)
+  # Saves MP4 to /recordings/ → Django uploads to Cloudinary
+  # ─────────────────────────────────────────────────────────
+  livekit-egress:
+    image: livekit/egress:v1.8.3
+    container_name: Qkics-Egress
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - SYS_ADMIN
+    shm_size: '1gb'
+    environment:
+      - EGRESS_CONFIG_FILE=/etc/egress/egress.yaml
+    volumes:
+      - ./livekit/egress.yaml:/etc/egress/egress.yaml:ro
+      - ./recordings:/recordings
+    depends_on:
+      livekit:
+        condition: service_healthy
