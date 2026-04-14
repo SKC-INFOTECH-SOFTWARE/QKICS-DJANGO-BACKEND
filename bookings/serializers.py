@@ -358,6 +358,7 @@ class InvestorBookingSerializer(serializers.ModelSerializer):
             "end_datetime",
             "duration_minutes",
             "reschedule_count",
+            "chat_room_id",
             "created_at",
             "call_room_id",
         ]

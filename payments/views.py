@@ -32,9 +32,6 @@ class FakeBookingPaymentView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        booking.status = Booking.STATUS_CONFIRMED
-        booking.save(update_fields=["status", "updated_at"])
-
         payment_service = FakePaymentService()
 
         payment = payment_service.create_payment(
@@ -50,11 +47,18 @@ class FakeBookingPaymentView(APIView):
 
         booking.refresh_from_db()
 
+        call_room_id = None
+        try:
+            call_room_id = str(booking.call_room.id)
+        except Exception:
+            pass
+
         return Response(
             {
                 "payment": PaymentSerializer(payment).data,
                 "booking_id": str(booking.uuid),
                 "chat_room_id": booking.chat_room_id,
+                "call_room_id": call_room_id,
                 "status": "BOOKING_CONFIRMED_AND_CHAT_CREATED",
             },
             status=status.HTTP_201_CREATED,

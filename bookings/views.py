@@ -130,9 +130,9 @@ class BookingListCreateView(generics.ListCreateAPIView):
         as_expert = self.request.query_params.get("as_expert")
 
         if as_expert == "true":
-            return Booking.objects.filter(expert=user)
+            return Booking.objects.filter(expert=user).select_related("call_room")
 
-        return Booking.objects.filter(user=user)
+        return Booking.objects.filter(user=user).select_related("call_room")
 
     def create(self, request, *args, **kwargs):
         """
@@ -166,7 +166,7 @@ class BookingDetailView(generics.RetrieveAPIView):
 
     serializer_class = BookingSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Booking.objects.all()
+    queryset = Booking.objects.select_related("call_room")
     lookup_field = "uuid"
 
     def get_object(self):
@@ -299,6 +299,8 @@ class InvestorBookingCreateView(APIView):
             slot=slot,
         )
 
+        booking = InvestorBooking.objects.select_related("call_room").get(id=booking.id)
+
         response = InvestorBookingSerializer(
             booking,
             context={"request": request},
@@ -318,6 +320,6 @@ class InvestorBookingListView(generics.ListAPIView):
         as_investor = self.request.query_params.get("as_investor")
 
         if as_investor == "true":
-            return InvestorBooking.objects.filter(investor=user)
+            return InvestorBooking.objects.filter(investor=user).select_related("call_room")
 
-        return InvestorBooking.objects.filter(user=user)
+        return InvestorBooking.objects.filter(user=user).select_related("call_room")
