@@ -63,15 +63,15 @@ services:
     container_name: Qkics-LiveKit
     restart: unless-stopped
     network_mode: host
-    environment:
-      - LIVEKIT_CONFIG=/etc/livekit/livekit.yaml
+    command: --config /etc/livekit/livekit.prod.yaml
     volumes:
-      - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
+      - ./livekit/livekit.prod.yaml:/etc/livekit/livekit.prod.yaml:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7880/"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:7880/ 2>&1; ret=$$?; [ $$ret -eq 0 ] || [ $$ret -eq 8 ]"]
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 30s
     depends_on:
       redis:
         condition: service_healthy
