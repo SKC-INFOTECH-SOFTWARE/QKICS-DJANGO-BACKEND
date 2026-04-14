@@ -25,16 +25,15 @@ class FakeBookingPaymentView(APIView):
             user=request.user,
         )
 
-        # FAKE auto-approve
-        if booking.status == Booking.STATUS_PENDING:
-            booking.status = Booking.STATUS_AWAITING_PAYMENT
-            booking.save(update_fields=["status", "updated_at"])
-
-        if booking.status != Booking.STATUS_AWAITING_PAYMENT:
+        # FAKE: set directly to CONFIRMED — no approval or payment step needed
+        if booking.status not in (Booking.STATUS_PENDING, Booking.STATUS_AWAITING_PAYMENT):
             return Response(
                 {"detail": f"Cannot pay for booking in {booking.status} state"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        booking.status = Booking.STATUS_CONFIRMED
+        booking.save(update_fields=["status", "updated_at"])
 
         payment_service = FakePaymentService()
 

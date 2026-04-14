@@ -67,7 +67,7 @@ class CompanyListView(generics.ListAPIView):
 
 class CompanyDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = CompanySerializer
-    permission_classes = [IsAuthenticatedOrReadOnly, IsCompanyOwner]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     lookup_field = "slug"
 
     queryset = Company.objects.filter(status="approved").select_related("owner")

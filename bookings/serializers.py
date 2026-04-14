@@ -3,7 +3,6 @@ from django.db import transaction
 from django.utils import timezone
 from .models import ExpertSlot, Booking, InvestorSlot, InvestorBooking
 from subscriptions.services.access import is_user_premium
-from calls.models import CallRoom
 
 class ExpertSlotSerializer(serializers.ModelSerializer):
     expert_name = serializers.CharField(source="expert.username", read_only=True)
@@ -233,14 +232,6 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             status=status,
         )
         booking.compute_fee_snapshot()
-        CallRoom.objects.create(
-            booking=booking,
-            user=user,
-            advisor=slot.expert,
-            scheduled_start=booking.start_datetime,
-            scheduled_end=booking.end_datetime,
-            status=CallRoom.STATUS_WAITING,
-        )
         booking.save()
         return booking
 

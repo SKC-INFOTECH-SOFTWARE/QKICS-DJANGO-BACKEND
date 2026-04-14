@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -50,8 +51,7 @@ class MyCallRoomsView(generics.ListAPIView):
         user = self.request.user
         return (
             CallRoom.objects
-            .filter(user=user)
-            .union(CallRoom.objects.filter(advisor=user))
+            .filter(Q(user=user) | Q(advisor=user))
             .order_by("-created_at")
         )
 
@@ -316,7 +316,7 @@ class AdminCallRecordingListView(generics.ListAPIView):
             {
                 "id":                    str(r.id),
                 "room_id":               str(r.room_id),
-                "participants":          f"{r.room.user.username} ↔ {r.room.advisor.username}",
+                "participants":          f"{r.room.user.username if r.room.user else 'deleted'} ↔ {r.room.advisor.username if r.room.advisor else 'deleted'}",
                 "status":                r.status,
                 "cloudinary_public_id":  r.cloudinary_public_id,
                 "file_size_mb":          round(r.file_size_bytes / 1024 / 1024, 2) if r.file_size_bytes else None,

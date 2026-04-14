@@ -200,6 +200,10 @@ def start_room_recording(*, call_room) -> str | None:
     """
     from calls.models import CallRecording
 
+    if not call_room.sfu_room_name:
+        logger.error("start_room_recording: CallRoom %s has no sfu_room_name, skipping.", call_room.id)
+        return None
+
     local_path = f"/recordings/{call_room.id}.mp4"
 
     try:
