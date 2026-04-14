@@ -44,10 +44,11 @@ rtc:
   tcp_port: 7881
   port_range_start: 50000
   port_range_end: 60000
-  use_external_ip: true
+  use_external_ip: false
+  node_ip: 192.168.0.109   # LAN IP — advertised to browsers as ICE candidate
 
 redis:
-  address: 127.0.0.1:6380
+  address: host.docker.internal:6380
 
 keys:
   18ca5e94d6f9d3af05323e9e0aa5a294: 99ced558616d7f89507f4a4c5dff0571
@@ -56,11 +57,12 @@ webhook:
   api_key: 18ca5e94d6f9d3af05323e9e0aa5a294
   urls:
     - http://host.docker.internal:8000/api/v1/calls/livekit/webhook/
+    # production: https://qkicsbackend.matchb.online/api/v1/calls/livekit/webhook/
 
 room:
   auto_create: true
-  empty_timeout: 300
-  departure_timeout: 20
+  empty_timeout: 600    # 10 min — keep room open after last participant leaves
+  departure_timeout: 60 # 60 sec — time for participant to reconnect after drop
 
 logging:
   level: info

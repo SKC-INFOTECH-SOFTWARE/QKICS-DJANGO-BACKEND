@@ -33,8 +33,10 @@ def schedule_auto_cut(*, call_room):
     job_id = f"auto_cut_{call_room.id}"
 
     try:
+        from datetime import timezone as _dt_tz
         scheduler = get_scheduler()
-        run_at    = call_room.scheduled_end.replace(tzinfo=None)  # naive UTC
+        # Always convert to UTC naive for APScheduler (TIME_ZONE=Asia/Kolkata can cause offset issues)
+        run_at = call_room.scheduled_end.astimezone(_dt_tz.utc).replace(tzinfo=None)
 
         scheduler.add_job(
             _auto_cut_job,
@@ -44,7 +46,7 @@ def schedule_auto_cut(*, call_room):
             name=f"Auto-cut CallRoom {call_room.id}",
             args=[str(call_room.id)],
             replace_existing=True,
-            misfire_grace_time=120,
+            misfire_grace_time=300,  # 5 min grace — handles brief server restarts
         )
 
         from calls.models import CallRoom

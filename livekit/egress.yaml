@@ -17,7 +17,7 @@ ws_url: ws://localhost:7880
 redis:
   address: 127.0.0.1:6380
 
-health_port:   7880
+health_port:   7988
 template_port: 7980
 
 # false = no seccomp profile (works with cap_add: SYS_ADMIN in docker-compose)

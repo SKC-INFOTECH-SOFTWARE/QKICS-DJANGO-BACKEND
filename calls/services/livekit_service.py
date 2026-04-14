@@ -415,7 +415,14 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
     if event_name == "egress_ended":
         ei = event.egress_info
 
-        if ei.status.name == "EGRESS_COMPLETE":
+        # ei.status is a protobuf int enum; EGRESS_COMPLETE = 3
+        try:
+            from livekit.protocol import egress as _ep
+            _EGRESS_COMPLETE = _ep.EGRESS_COMPLETE
+        except AttributeError:
+            _EGRESS_COMPLETE = 3  # fallback: EgressStatus.EGRESS_COMPLETE
+
+        if ei.status == _EGRESS_COMPLETE:
             # Run Cloudinary upload in background thread (non-blocking)
             import threading
             try:
@@ -432,12 +439,39 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
                 logger.warning("No CallRecording found for egress_id=%s", ei.egress_id)
 
         else:
-            # Egress failed
+            # Egress failed/aborted
             CallRecording.objects.filter(egress_id=ei.egress_id).update(
                 status=CallRecording.STATUS_FAILED,
                 ended_at=timezone.now(),
             )
-            logger.error("Egress failed: id=%s status=%s", ei.egress_id, ei.status.name)
+            logger.error("Egress failed: id=%s status=%s", ei.egress_id, ei.status)
+
+    # ── First participant joins → start recording + mark ACTIVE ──
+    elif event_name == "participant_joined":
+        room_name = event.room.name
+        try:
+            call_room = CallRoom.objects.get(sfu_room_name=room_name)
+
+            # Mark ACTIVE on first join
+            if call_room.status == CallRoom.STATUS_WAITING:
+                CallRoom.objects.filter(id=call_room.id).update(
+                    status=CallRoom.STATUS_ACTIVE,
+                    started_at=timezone.now(),
+                )
+                logger.info("CallRoom ACTIVE: room=%s", room_name)
+
+            # Start recording only once (no duplicate egress)
+            if not CallRecording.objects.filter(room=call_room).exists():
+                import threading
+                def _start_rec():
+                    start_room_recording(call_room=call_room)
+                threading.Thread(target=_start_rec, daemon=True).start()
+                logger.info("Recording triggered: first participant joined room=%s", room_name)
+
+        except CallRoom.DoesNotExist:
+            logger.warning("participant_joined: no CallRoom for sfu_room_name=%s", room_name)
+        except Exception as e:
+            logger.error("participant_joined handler [%s]: %s", room_name, e)
 
     # ── Room closed → mark ended ──
     elif event_name == "room_finished":

@@ -108,7 +108,7 @@ class CallRoomDetailView(APIView):
                 .to_jwt()
             )
             data["livekit_token"] = token
-            data["livekit_url"]   = settings.LIVEKIT_URL
+            data["livekit_url"]   = settings.LIVEKIT_PUBLIC_URL
         except Exception as e:
             logger.error("LiveKit token generation failed [room=%s]: %s", room_id, e)
             data["livekit_token"] = None

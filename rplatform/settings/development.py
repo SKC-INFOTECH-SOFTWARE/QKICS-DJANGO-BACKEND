@@ -6,9 +6,10 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
+    "host.docker.internal",
     "192.168.0.123",
     "192.168.0.159",
-    "192.168.0.109"
+    "192.168.0.109",
 ]
 
 # CORS (React + Flutter dev)

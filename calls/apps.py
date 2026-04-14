@@ -10,14 +10,16 @@ class CallsConfig(AppConfig):
     name = "calls"
 
     def ready(self):
-        is_dev_main = os.environ.get("RUN_MAIN") == "true"
-        is_prod     = not os.environ.get("DJANGO_SETTINGS_MODULE", "").endswith("development")
+        import sys
+        # Skip during management commands that don't need the scheduler
+        skip_commands = {"migrate", "makemigrations", "test", "collectstatic", "shell"}
+        if any(cmd in sys.argv for cmd in skip_commands):
+            return
 
-        if is_dev_main or is_prod:
-            try:
-                from calls.services.auto_cut import get_scheduler
-                scheduler = get_scheduler()
-                if scheduler.running:
-                    logger.info("APScheduler running — auto-cut jobs active.")
-            except Exception as e:
-                logger.error("APScheduler init failed: %s", e)
+        try:
+            from calls.services.auto_cut import get_scheduler
+            scheduler = get_scheduler()
+            if scheduler.running:
+                logger.info("APScheduler running — auto-cut jobs active.")
+        except Exception as e:
+            logger.error("APScheduler init failed: %s", e)

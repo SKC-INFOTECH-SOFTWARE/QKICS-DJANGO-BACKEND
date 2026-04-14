@@ -218,7 +218,8 @@ NOTIFICATION_API_KEY = config("NOTIFICATION_API_KEY", default="")
 DEFAULT_CHANNELS = ["IN_APP", "PUSH"]
 
 
-LIVEKIT_URL        = config("LIVEKIT_URL", ...)
+LIVEKIT_URL        = config("LIVEKIT_URL", ...)          # backend → LiveKit API (internal)
+LIVEKIT_PUBLIC_URL = config("LIVEKIT_PUBLIC_URL", default=config("LIVEKIT_URL", ...))  # returned to frontend
 LIVEKIT_API_KEY    = config("LIVEKIT_API_KEY", ...)
 LIVEKIT_API_SECRET = config("LIVEKIT_API_SECRET", ...)
 CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", ...)
