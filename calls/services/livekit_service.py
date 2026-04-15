@@ -99,22 +99,22 @@ def generate_participant_token(*, room_name: str, user) -> str:
 # ROOM MANAGEMENT
 # ──────────────────────────────────────────────────────
 
-async def _create_room(room_name: str):
+async def _create_room(room_name: str, empty_timeout: int = 3600):
     from livekit import api as lkapi
     lk = _lk()
     try:
         return await lk.room.create_room(lkapi.CreateRoomRequest(
             name=room_name,
-            empty_timeout=300,
+            empty_timeout=empty_timeout,
             max_participants=2,
         ))
     finally:
         await lk.aclose()
 
 
-def create_livekit_room(room_name: str):
+def create_livekit_room(room_name: str, empty_timeout: int = 3600):
     try:
-        return _run(_create_room(room_name))
+        return _run(_create_room(room_name, empty_timeout=empty_timeout))
     except Exception as e:
         logger.error("create_livekit_room [%s]: %s", room_name, e)
 
@@ -473,23 +473,39 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
         except Exception as e:
             logger.error("participant_joined handler [%s]: %s", room_name, e)
 
-    # ── Room closed → mark ended ──
+    # ── Room closed → mark ended only if the slot time has passed ──
     elif event_name == "room_finished":
         room_name = event.room.name
-        ended = CallRoom.objects.filter(
-            sfu_room_name=room_name,
-        ).exclude(status=CallRoom.STATUS_ENDED).update(
-            status=CallRoom.STATUS_ENDED,
-            ended_at=timezone.now(),
-        )
+        now = timezone.now()
 
-        if ended:
+        try:
+            call_room = CallRoom.objects.get(sfu_room_name=room_name)
+        except CallRoom.DoesNotExist:
+            logger.warning("room_finished: no CallRoom for sfu_room_name=%s", room_name)
+            return event_name
+
+        # If the scheduled slot is still active, do NOT mark as ENDED.
+        # Participants may have temporarily disconnected; they can rejoin
+        # and LiveKit will auto-create the room (auto_create: true in config).
+        if call_room.scheduled_end and now < call_room.scheduled_end:
+            logger.info(
+                "room_finished before slot end (scheduled_end=%s): %s — skipping ENDED",
+                call_room.scheduled_end, room_name,
+            )
+            return event_name
+
+        # Slot has ended (or no scheduled_end) → mark ENDED and stop recordings
+        if call_room.status != CallRoom.STATUS_ENDED:
+            CallRoom.objects.filter(id=call_room.id).update(
+                status=CallRoom.STATUS_ENDED,
+                ended_at=now,
+            )
             for rec in CallRecording.objects.filter(
-                room__sfu_room_name=room_name,
+                room=call_room,
                 status=CallRecording.STATUS_RECORDING,
             ):
                 stop_room_recording(egress_id=rec.egress_id)
 
-        logger.info("room_finished: %s, ended %d rooms", room_name, ended)
+        logger.info("room_finished: %s ended", room_name)
 
     return event_name

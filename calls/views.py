@@ -85,6 +85,15 @@ class CallRoomDetailView(APIView):
         if room is None:
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # If room was marked ENDED but the slot time hasn't passed yet,
+        # reset it so participants can rejoin (e.g. after a temporary disconnect).
+        if room.status == CallRoom.STATUS_ENDED:
+            if room.scheduled_end and timezone.now() < room.scheduled_end:
+                CallRoom.objects.filter(id=room.id).update(status=CallRoom.STATUS_WAITING)
+                room.status = CallRoom.STATUS_WAITING
+            else:
+                return Response({"detail": "Call has ended."}, status=status.HTTP_403_FORBIDDEN)
+
         data = CallRoomSerializer(room, context={"request": request}).data
 
         # Generate LiveKit token
