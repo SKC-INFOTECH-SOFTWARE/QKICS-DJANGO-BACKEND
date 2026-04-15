@@ -46,7 +46,7 @@ def schedule_auto_cut(*, call_room):
             name=f"Auto-cut CallRoom {call_room.id}",
             args=[str(call_room.id)],
             replace_existing=True,
-            misfire_grace_time=300,  # 5 min grace — handles brief server restarts
+            misfire_grace_time=300,  # 5 min grace — handles brief server
         )
 
         from calls.models import CallRoom
