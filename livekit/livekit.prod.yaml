@@ -20,7 +20,7 @@ webhook:
 room:
   auto_create: true
   empty_timeout: 600    # 10 min — keep room open after last participant leaves
-  departure_timeout: 60 # 60 sec — time for participant to reconnect after drop
+  departure_timeout: 300 # 5 min — time for participant to reconnect after drop
 
 logging:
   level: info
