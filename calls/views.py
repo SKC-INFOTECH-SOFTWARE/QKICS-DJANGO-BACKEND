@@ -89,26 +89,12 @@ class CallRoomDetailView(APIView):
 
         # Generate LiveKit token
         try:
-            from livekit import api as lkapi
-
-            grant = lkapi.VideoGrants(
-                room_join=True,
-                room=room.sfu_room_name,
-                can_publish=True,
-                can_subscribe=True,
+            from calls.services.livekit_service import generate_participant_token
+            data["livekit_token"] = generate_participant_token(
+                room_name=room.sfu_room_name,
+                user=request.user,
             )
-            token = (
-                lkapi.AccessToken(
-                    api_key=settings.LIVEKIT_API_KEY,
-                    api_secret=settings.LIVEKIT_API_SECRET,
-                )
-                .with_identity(str(request.user.id))
-                .with_name(request.user.get_full_name() or request.user.username)
-                .with_grants(grant)
-                .to_jwt()
-            )
-            data["livekit_token"] = token
-            data["livekit_url"]   = settings.LIVEKIT_PUBLIC_URL
+            data["livekit_url"] = settings.LIVEKIT_PUBLIC_URL
         except Exception as e:
             logger.error("LiveKit token generation failed [room=%s]: %s", room_id, e)
             data["livekit_token"] = None
