@@ -107,6 +107,11 @@ DATABASES = {
         "PASSWORD": config("DB_PASSWORD"),
         "HOST": config("DB_HOST", default="127.0.0.1"),
         "PORT": config("DB_PORT", default="3306"),
+        # TIME_ZONE here tells Django's MySQL backend to use offset format (+05:30)
+        # instead of the named timezone ('Asia/Kolkata') when calling CONVERT_TZ().
+        # MySQL resolves offsets natively — no mysql.time_zone tables needed.
+        # settings.TIME_ZONE = 'Asia/Kolkata' is still used for all display/template rendering.
+        "TIME_ZONE": "+05:30",
         "OPTIONS": {
             "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
         },
