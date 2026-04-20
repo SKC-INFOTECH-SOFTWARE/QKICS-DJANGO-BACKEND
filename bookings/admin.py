@@ -12,7 +12,7 @@ from .models import ExpertSlot, SlotRecurringPattern, Booking, InvestorSlot, Inv
 class ExpertSlotAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'expert', 'start_datetime', 'end_datetime',
-        'duration_minutes', 'price', 'status', 'requires_approval',
+        'duration_minutes', 'chat_price', 'video_call_price', 'status', 'requires_approval',
         'is_recurring', 'availability_badge', 'created_at',
     )
     list_filter = ('status', 'requires_approval', 'is_recurring', 'created_at')
@@ -27,7 +27,7 @@ class ExpertSlotAdmin(admin.ModelAdmin):
             'fields': ('expert', 'start_datetime', 'end_datetime', 'duration_minutes'),
         }),
         ('Pricing & Settings', {
-            'fields': ('price', 'requires_approval', 'is_recurring', 'status'),
+            'fields': ('chat_price', 'video_call_price', 'requires_approval', 'is_recurring', 'status'),
         }),
         ('System', {
             'fields': ('uuid', 'created_at', 'updated_at'),
@@ -97,10 +97,10 @@ class SlotRecurringPatternAdmin(admin.ModelAdmin):
 class BookingAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'user', 'expert', 'start_datetime', 'duration_minutes',
-        'price', 'status_badge', 'requires_expert_approval',
+        'session_type', 'price', 'status_badge', 'requires_expert_approval',
         'paid_at', 'created_at',
     )
-    list_filter = ('status', 'requires_expert_approval', 'created_at', 'start_datetime')
+    list_filter = ('status', 'session_type', 'requires_expert_approval', 'created_at', 'start_datetime')
     search_fields = (
         'user__username', 'user__email',
         'expert__username', 'expert__email',
@@ -121,7 +121,7 @@ class BookingAdmin(admin.ModelAdmin):
         ('Session Details', {
             'fields': (
                 'start_datetime', 'end_datetime', 'duration_minutes',
-                'chat_room_id',
+                'session_type', 'chat_room_id',
             ),
         }),
         ('Status & Approval', {

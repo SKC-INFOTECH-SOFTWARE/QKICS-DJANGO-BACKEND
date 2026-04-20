@@ -6,7 +6,8 @@ from subscriptions.services.access import is_user_premium
 
 class ExpertSlotSerializer(serializers.ModelSerializer):
     expert_name = serializers.CharField(source="expert.username", read_only=True)
-    is_available = serializers.SerializerMethodField()
+    is_chat_available = serializers.SerializerMethodField()
+    is_video_call_available = serializers.SerializerMethodField()
 
     class Meta:
         model = ExpertSlot
@@ -18,17 +19,22 @@ class ExpertSlotSerializer(serializers.ModelSerializer):
             "start_datetime",
             "end_datetime",
             "duration_minutes",
-            "price",
+            "chat_price",
+            "video_call_price",
             "requires_approval",
             "is_recurring",
             "status",
-            "is_available",
+            "is_chat_available",
+            "is_video_call_available",
             "created_at",
         ]
         read_only_fields = fields
 
-    def get_is_available(self, obj):
-        return obj.is_available()
+    def get_is_chat_available(self, obj):
+        return obj.is_chat_available()
+
+    def get_is_video_call_available(self, obj):
+        return obj.is_video_call_available()
 
 
 class ExpertSlotCreateSerializer(serializers.ModelSerializer):
@@ -38,7 +44,8 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
             "start_datetime",
             "end_datetime",
             "duration_minutes",
-            "price",
+            "chat_price",
+            "video_call_price",
             "requires_approval",
         ]
 
@@ -52,6 +59,12 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
         if end <= start:
             raise serializers.ValidationError(
                 {"end_datetime": "End time must be after start time."}
+            )
+        chat_price = attrs.get("chat_price", 0)
+        video_call_price = attrs.get("video_call_price", 0)
+        if chat_price <= 0 and video_call_price <= 0:
+            raise serializers.ValidationError(
+                "At least one of chat_price or video_call_price must be greater than 0."
             )
         expert = self.context["request"].user
         if ExpertSlot.objects.filter(
@@ -72,7 +85,8 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
         fields = [
             "start_datetime",
             "end_datetime",
-            "price",
+            "chat_price",
+            "video_call_price",
             "requires_approval",
             "status",
         ]
@@ -89,6 +103,12 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
         if end <= start:
             raise serializers.ValidationError(
                 {"end_datetime": "End time must be after start time."}
+            )
+        chat_price = attrs.get("chat_price", instance.chat_price)
+        video_call_price = attrs.get("video_call_price", instance.video_call_price)
+        if chat_price <= 0 and video_call_price <= 0:
+            raise serializers.ValidationError(
+                "At least one of chat_price or video_call_price must be greater than 0."
             )
         return attrs
 
@@ -148,6 +168,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "completed_at",
             "declined_at",
             "cancelled_at",
+            "session_type",
             "chat_room_id",
             "reschedule_count",
             "cancellation_reason",
@@ -171,11 +192,11 @@ class BookingSerializer(serializers.ModelSerializer):
 
 class BookingCreateSerializer(serializers.ModelSerializer):
     slot_id = serializers.UUIDField(write_only=True)
+    session_type = serializers.ChoiceField(choices=Booking.SESSION_TYPE_CHOICES)
 
     class Meta:
         model = Booking
-        fields = ["slot_id", "price"]
-        extra_kwargs = {"price": {"required": False}}
+        fields = ["slot_id", "session_type"]
 
     def validate_slot_id(self, value):
         try:
@@ -188,6 +209,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = self.context["request"].user
         slot_id = attrs.get("slot_id")
+        session_type = attrs.get("session_type")
         try:
             slot = ExpertSlot.objects.select_for_update().get(
                 uuid=slot_id, status="ACTIVE"
@@ -198,10 +220,18 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You cannot book your own slot.")
         if slot.start_datetime <= timezone.now():
             raise serializers.ValidationError("Cannot book past or ongoing slots.")
+        if session_type == Booking.SESSION_TYPE_CHAT and slot.chat_price <= 0:
+            raise serializers.ValidationError(
+                "Chat session is not available for this slot."
+            )
+        if session_type == Booking.SESSION_TYPE_VIDEO_CALL and slot.video_call_price <= 0:
+            raise serializers.ValidationError(
+                "Video call session is not available for this slot."
+            )
         if Booking.objects.filter(
             slot=slot, status__in=Booking.ACTIVE_STATUSES
         ).exists():
-            raise serializers.ValidationError("Slot already booked.")
+            raise serializers.ValidationError("Slot is already booked.")
         if Booking.objects.filter(
             user=user, slot=slot, status__in=Booking.ACTIVE_STATUSES
         ).exists():
@@ -214,8 +244,13 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = self.context["request"].user
         slot = validated_data["slot"]
-        price = validated_data.get("price", slot.price)
-        status = (
+        session_type = validated_data["session_type"]
+        price = (
+            slot.chat_price
+            if session_type == Booking.SESSION_TYPE_CHAT
+            else slot.video_call_price
+        )
+        booking_status = (
             Booking.STATUS_PENDING
             if slot.requires_approval
             else Booking.STATUS_AWAITING_PAYMENT
@@ -228,8 +263,9 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             end_datetime=slot.end_datetime,
             duration_minutes=slot.duration_minutes,
             price=price,
+            session_type=session_type,
             requires_expert_approval=slot.requires_approval,
-            status=status,
+            status=booking_status,
         )
         booking.compute_fee_snapshot()
         booking.save()

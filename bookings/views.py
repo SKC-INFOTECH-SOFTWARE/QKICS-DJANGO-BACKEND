@@ -1,5 +1,5 @@
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
 
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -47,12 +47,28 @@ class ExpertSlotListView(generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
+        from django.db.models import OuterRef
+
         expert_uuid = self.kwargs["expert_id"]
-        return ExpertSlot.objects.filter(
-            expert__uuid=expert_uuid,
-            status="ACTIVE",
-            start_datetime__gt=timezone.now(),
-        ).order_by("start_datetime")
+
+        already_booked = Booking.objects.filter(
+            slot=OuterRef("pk"),
+            status__in=Booking.ACTIVE_STATUSES,
+        )
+
+        return (
+            ExpertSlot.objects.filter(
+                expert__uuid=expert_uuid,
+                status="ACTIVE",
+                start_datetime__gt=timezone.now(),
+            )
+            .annotate(is_booked=models.Exists(already_booked))
+            .filter(
+                is_booked=False,
+            )
+            .filter(models.Q(chat_price__gt=0) | models.Q(video_call_price__gt=0))
+            .order_by("start_datetime")
+        )
 
 
 class ExpertSlotCreateView(generics.CreateAPIView):

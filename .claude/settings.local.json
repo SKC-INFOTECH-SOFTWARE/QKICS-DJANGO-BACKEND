@@ -2,7 +2,18 @@
   "permissions": {
     "allow": [
       "Bash(pip show:*)",
-      "Bash(pip list:*)"
+      "Bash(pip list:*)",
+      "Bash(ls *)",
+      "WebFetch(domain:docs.livekit.io)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.linkedin.com)",
+      "Bash(xargs grep *)",
+      "Bash(grep -E \"\\(rplatform|urls.py$\\)\")",
+      "Bash(python manage.py makemigrations --check)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(python manage.py migrate bookings)"
     ]
   }
 }

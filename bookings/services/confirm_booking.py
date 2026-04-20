@@ -7,6 +7,7 @@ from chat.services.create_room import get_or_create_chat_room
 from notifications.services.events import notify_booking_confirmed
 from calls.services.call_room_service import create_call_room_for_booking
 
+
 def confirm_booking_after_payment(*, payment: Payment):
     if payment.status != Payment.STATUS_SUCCESS:
         return
@@ -29,15 +30,14 @@ def confirm_booking_after_payment(*, payment: Payment):
         if not booking.expert_approved_at:
             booking.expert_approved_at = timezone.now()
 
-        # ✅ CHAT ROOM
-        chat_room = get_or_create_chat_room(
-            user=booking.user,
-            advisor=booking.expert
-        )
-        booking.chat_room_id = chat_room.id
-
-        # ✅ CALL ROOM (MOVE INSIDE TRANSACTION)
-        create_call_room_for_booking(booking=booking)
+        if booking.session_type == Booking.SESSION_TYPE_CHAT:
+            chat_room = get_or_create_chat_room(
+                user=booking.user,
+                advisor=booking.expert,
+            )
+            booking.chat_room_id = chat_room.id
+        elif booking.session_type == Booking.SESSION_TYPE_VIDEO_CALL:
+            create_call_room_for_booking(booking=booking)
 
         booking.save(
             update_fields=[

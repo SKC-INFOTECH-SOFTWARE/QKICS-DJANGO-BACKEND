@@ -13,6 +13,8 @@ class ExpertSlot(models.Model):
     """
     Represents a single slot created by an Expert.
     Each slot is a concrete window (start/end). Capacity is 1 by business rule.
+    Expert sets separate prices for chat and video call sessions.
+    User chooses session type at booking time.
     """
 
     id = models.BigAutoField(primary_key=True)
@@ -23,7 +25,10 @@ class ExpertSlot(models.Model):
     start_datetime = models.DateTimeField()
     end_datetime = models.DateTimeField()
     duration_minutes = models.PositiveIntegerField()
-    price = models.DecimalField(
+    chat_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )
+    video_call_price = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal("0.00")
     )
     requires_approval = models.BooleanField(default=True)
@@ -68,36 +73,39 @@ class ExpertSlot(models.Model):
         if self.start_datetime < timezone.now():
             raise ValidationError("Cannot create slots in the past.")
 
-    def is_available(self):
-        """
-        Check if slot is available for booking.
-        Returns True if slot is active, in the future, and has no active bookings.
-        """
-        if self.status != "ACTIVE":
-            return False
+    _ACTIVE_BOOKING_STATUSES = [
+        "PENDING", "AWAITING_PAYMENT", "PAID", "CONFIRMED"
+    ]
 
-        if self.start_datetime <= timezone.now():
-            return False
+    def _is_base_available(self):
+        return self.status == "ACTIVE" and self.start_datetime > timezone.now()
 
-        # Check if there's any active booking
-        return not self.bookings.filter(
-            status__in=[
-                Booking.STATUS_PENDING,
-                Booking.STATUS_AWAITING_PAYMENT,
-                Booking.STATUS_PAID,
-                Booking.STATUS_CONFIRMED,
-            ]
+    def _has_any_active_booking(self):
+        return self.bookings.filter(
+            status__in=self._ACTIVE_BOOKING_STATUSES,
         ).exists()
 
+    def is_chat_available(self):
+        if not self._is_base_available():
+            return False
+        if self.chat_price <= 0:
+            return False
+        return not self._has_any_active_booking()
+
+    def is_video_call_available(self):
+        if not self._is_base_available():
+            return False
+        if self.video_call_price <= 0:
+            return False
+        return not self._has_any_active_booking()
+
+    def is_available(self):
+        """True if at least one session type is still bookable."""
+        return self.is_chat_available() or self.is_video_call_available()
+
     def has_active_bookings(self):
-        """Check if slot has any active bookings"""
         return self.bookings.filter(
-            status__in=[
-                Booking.STATUS_PENDING,
-                Booking.STATUS_AWAITING_PAYMENT,
-                Booking.STATUS_PAID,
-                Booking.STATUS_CONFIRMED,
-            ]
+            status__in=self._ACTIVE_BOOKING_STATUSES,
         ).exists()
 
 
@@ -157,7 +165,15 @@ class Booking(models.Model):
     """
     Core booking record. Minimal fields kept for scale.
     Snapshots: price & fee fields are stored for audit and payouts.
+    session_type is chosen by the user at booking time (CHAT or VIDEO_CALL).
     """
+
+    SESSION_TYPE_CHAT = "CHAT"
+    SESSION_TYPE_VIDEO_CALL = "VIDEO_CALL"
+    SESSION_TYPE_CHOICES = (
+        (SESSION_TYPE_CHAT, "Chat"),
+        (SESSION_TYPE_VIDEO_CALL, "Video Call"),
+    )
 
     # Status definitions
     STATUS_PENDING = "PENDING"  # Waiting for expert approval (if required)
@@ -217,6 +233,11 @@ class Booking(models.Model):
     end_datetime = models.DateTimeField()
     duration_minutes = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    session_type = models.CharField(
+        max_length=16,
+        choices=SESSION_TYPE_CHOICES,
+        default=SESSION_TYPE_CHAT,
+    )
     platform_fee_percent = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal("20.00")
     )
@@ -261,7 +282,8 @@ class Booking(models.Model):
             models.Index(fields=["slot", "status"]),  # For slot availability checks
         ]
         constraints = [
-            # CRITICAL FIX: Include PENDING to prevent double bookings
+            # Only ONE active booking per slot regardless of session_type
+            # Expert can only do one session at a time
             models.UniqueConstraint(
                 fields=["slot"],
                 condition=Q(
@@ -274,7 +296,7 @@ class Booking(models.Model):
                 ),
                 name="unique_active_booking_per_slot",
             ),
-            # Prevent user from booking multiple times on same slot
+            # Prevent same user from booking same slot more than once
             models.UniqueConstraint(
                 fields=["user", "slot"],
                 condition=Q(
