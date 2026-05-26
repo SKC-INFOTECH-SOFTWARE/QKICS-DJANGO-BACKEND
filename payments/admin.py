@@ -17,7 +17,7 @@ class PaymentAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     date_hierarchy = 'created_at'
 
-    # uuid is system-generated; reference_id and timestamps are audit fields
+    # uuid is system-generated; reference_id and timestamps are audit field
     readonly_fields = (
         'uuid', 'reference_id', 'created_at', 'updated_at',
     )
