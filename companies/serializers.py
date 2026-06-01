@@ -162,3 +162,23 @@ class CompanyPostSerializer(serializers.ModelSerializer):
                 CompanyPostMedia.objects.create(post=post, file=file)
 
         return post
+
+
+class CompanyPostUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyPost
+        fields = ["title", "content"]
+
+    def update(self, instance, validated_data):
+        request = self.context.get("request")
+
+        instance.title = validated_data.get("title", instance.title)
+        instance.content = validated_data.get("content", instance.content)
+        instance.save()
+
+        if request and request.FILES:
+            files = request.FILES.getlist("uploaded_files")
+            for file in files:
+                CompanyPostMedia.objects.create(post=instance, file=file)
+
+        return instance

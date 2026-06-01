@@ -13,6 +13,7 @@ from .models import Company, CompanyMember, CompanyPost
 from .serializers import (
     CompanySerializer,
     CompanyPostSerializer,
+    CompanyPostUpdateSerializer,
     CompanyMemberSerializer,
 )
 from .permissions import IsCompanyOwner, IsCompanyEditor
@@ -268,7 +269,7 @@ class CompanyPostFeedView(generics.ListAPIView):
 
 
 class CompanyPostUpdateView(generics.UpdateAPIView):
-    serializer_class = CompanyPostSerializer
+    serializer_class = CompanyPostUpdateSerializer
     permission_classes = [IsAuthenticated, IsCompanyEditor]
 
     def get_queryset(self):
