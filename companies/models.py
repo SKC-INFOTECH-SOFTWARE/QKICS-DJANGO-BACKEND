@@ -211,13 +211,15 @@ class CompanyPostMedia(models.Model):
 
         mime_type, _ = mimetypes.guess_type(self.file.name)
 
-        if mime_type:
-            if mime_type.startswith("image"):
-                self.media_type = "image"
-            elif mime_type.startswith("video"):
-                self.media_type = "video"
-            else:
-                raise ValidationError("Unsupported file type")
+        if not mime_type:
+            raise ValidationError("Could not determine file type")
+
+        if mime_type.startswith("image"):
+            self.media_type = "image"
+        elif mime_type.startswith("video"):
+            self.media_type = "video"
+        else:
+            raise ValidationError("Unsupported file type")
 
         super().save(*args, **kwargs)
 

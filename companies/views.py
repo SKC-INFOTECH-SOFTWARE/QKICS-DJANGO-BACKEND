@@ -286,13 +286,17 @@ class CompanyPostUpdateView(generics.UpdateAPIView):
 
 class CompanyPostDeleteView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated, IsCompanyEditor]
-
+    
     def get_queryset(self):
         return CompanyPost.objects.filter(
             company__members__user=self.request.user,
             company__members__role__in=["owner", "editor"],
         )
-
+        
+    def perform_destroy(self, instance):
+        for media in instance.media.all():
+            media.file.delete(save=False)
+        instance.delete() 
 
 # =====================================================
 # CREATE PAID COMPANY POST
@@ -303,7 +307,8 @@ class CompanyPaidPostCreateView(generics.CreateAPIView):
 
     serializer_class = CompanyPostSerializer
     permission_classes = [IsAuthenticated, IsCompanyEditor]
-
+    parser_classes = [MultiPartParser, FormParser]
+    
     def perform_create(self, serializer):
         company_id = self.kwargs["company_id"]
         company = get_object_or_404(Company, id=company_id)

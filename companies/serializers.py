@@ -127,6 +127,11 @@ class CompanyPostSerializer(serializers.ModelSerializer):
     author = serializers.StringRelatedField(read_only=True)
     company = CompanyPostCompanySerializer(read_only=True)
     media = CompanyPostMediaSerializer(many=True, read_only=True)
+    uploaded_files = serializers.ListField(
+        child=serializers.FileField(),
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = CompanyPost
@@ -137,6 +142,7 @@ class CompanyPostSerializer(serializers.ModelSerializer):
             "title",
             "content",
             "media",
+            "uploaded_files",
             "created_at",
             "updated_at",
             "is_active",
@@ -152,33 +158,36 @@ class CompanyPostSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        request = self.context.get("request")
+        files = validated_data.pop("uploaded_files", [])
 
         post = CompanyPost.objects.create(**validated_data)
-        if request and request.FILES:
-            files = request.FILES.getlist("uploaded_files")
 
-            for file in files:
-                CompanyPostMedia.objects.create(post=post, file=file)
+        for file in files:
+            CompanyPostMedia.objects.create(post=post, file=file)
 
         return post
 
 
 class CompanyPostUpdateSerializer(serializers.ModelSerializer):
+    media = CompanyPostMediaSerializer(many=True, read_only=True)
+    uploaded_files = serializers.ListField(
+        child=serializers.FileField(),
+        write_only=True,
+        required=False,
+    )
+
     class Meta:
         model = CompanyPost
-        fields = ["title", "content"]
+        fields = ["title", "content", "media", "uploaded_files"]
 
     def update(self, instance, validated_data):
-        request = self.context.get("request")
+        files = validated_data.pop("uploaded_files", [])
 
         instance.title = validated_data.get("title", instance.title)
         instance.content = validated_data.get("content", instance.content)
         instance.save()
 
-        if request and request.FILES:
-            files = request.FILES.getlist("uploaded_files")
-            for file in files:
-                CompanyPostMedia.objects.create(post=instance, file=file)
+        for file in files:
+            CompanyPostMedia.objects.create(post=instance, file=file)
 
         return instance
