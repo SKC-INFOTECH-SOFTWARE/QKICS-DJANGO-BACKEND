@@ -12,6 +12,7 @@ from .serializers import (
     IndustrySerializer,
     StartupStageSerializer,
 )
+from rest_framework.filters import SearchFilter
 from users.permissions import IsAdmin
 from rest_framework.generics import ListAPIView
 from .pagination import InvestorCursorPagination
@@ -83,7 +84,13 @@ class InvestorListView(ListAPIView):
     serializer_class = InvestorReadSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     pagination_class = InvestorCursorPagination
+    filter_backends = [SearchFilter]
 
+    search_fields = [
+        "user__first_name",
+        "user__last_name",
+        "user__username",
+    ]
     def get_queryset(self):
         return (
             Investor.objects
