@@ -2,7 +2,7 @@ from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework.filters import SearchFilter, OrderingFilter
-
+from django_filters.rest_framework import DjangoFilterBackend
 from users.permissions import IsAdmin
 from adminpanel.serializers import AdminFullUserSerializer
 from adminpanel.pagination import AdminPagination
@@ -20,7 +20,8 @@ class AdminUserListView(ListAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
     pagination_class = AdminPagination
 
-    filter_backends = [SearchFilter, OrderingFilter]
+    filter_backends = [SearchFilter, OrderingFilter, DjangoFilterBackend]
+    filterset_fields = ["user_type"]
 
     search_fields = [
         "username",

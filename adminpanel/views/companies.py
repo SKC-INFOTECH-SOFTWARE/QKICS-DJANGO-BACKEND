@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAdminUser
 from django.shortcuts import get_object_or_404
 
 from companies.models import Company, CompanyMember, CompanyPost
-
+from django_filters.rest_framework import DjangoFilterBackend
 from adminpanel.serializers import (
     AdminCompanySerializer,
     AdminCompanyMemberSerializer,
@@ -26,6 +26,9 @@ class AdminCompanyListView(generics.ListAPIView):
     serializer_class = AdminCompanySerializer
     permission_classes = [IsAdminUser]
     pagination_class = AdminCursorPagination
+    # http://192.168.0.123:8000/api/v1/admin/companies/?status=approved
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["status"]
 
 
 # =====================================================
