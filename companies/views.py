@@ -146,7 +146,7 @@ class CompanyAddEditorView(generics.CreateAPIView):
 
         if not created:
             return Response(
-                {"detail": "User is already a member of this company"},
+                {"message": "User is already a member of this company"},
                 status=400,
             )
 
@@ -177,7 +177,7 @@ class CompanyRemoveEditorView(generics.DestroyAPIView):
         notify_company_member_removed(member.company, member.user)
         member.delete()
 
-        return Response({"detail": "Editor removed successfully"})
+        return Response({"message": "Editor removed successfully"})
 
 
 # =====================================================
@@ -204,6 +204,7 @@ class CompanyPostCreateView(generics.CreateAPIView):
 
             raise PermissionDenied(
                 {
+                    "message": "Payment required to create a post.",
                     "payment_required": True,
                     "price": settings.paid_post_price if settings else 0,
                 }

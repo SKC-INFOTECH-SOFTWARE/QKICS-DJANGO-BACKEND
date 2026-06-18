@@ -50,7 +50,7 @@ class AdminSubscriptionPlanDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         if not plan.is_active:
             return Response(
-                {"detail": "Subscription plan already inactive"},
+                {"message": "Subscription plan already inactive"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -58,6 +58,6 @@ class AdminSubscriptionPlanDetailView(generics.RetrieveUpdateDestroyAPIView):
         plan.save(update_fields=["is_active"])
 
         return Response(
-            {"detail": "Subscription plan deactivated successfully"},
+            {"message": "Subscription plan deactivated successfully"},
             status=status.HTTP_200_OK,
         )

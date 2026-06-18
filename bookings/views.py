@@ -208,7 +208,7 @@ class BookingApprovalView(APIView):
             booking = Booking.objects.select_for_update().get(uuid=booking_id)
         except Booking.DoesNotExist:
             return Response(
-                {"detail": "Booking not found"},
+                {"message": "Booking not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -240,7 +240,7 @@ class BookingApprovalView(APIView):
             )
             notify_booking_approved(booking)
             return Response(
-                {"detail": "Booking approved. Awaiting payment."},
+                {"message": "Booking approved. Awaiting payment."},
                 status=status.HTTP_200_OK,
             )
 
@@ -260,7 +260,7 @@ class BookingApprovalView(APIView):
         )
         notify_booking_declined(booking)
         return Response(
-            {"detail": "Booking declined."},
+            {"message": "Booking declined."},
             status=status.HTTP_200_OK,
         )
 

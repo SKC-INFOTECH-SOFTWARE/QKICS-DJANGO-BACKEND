@@ -83,7 +83,7 @@ class CallRoomDetailView(APIView):
     def get(self, request, room_id):
         room = _get_room_for_user(room_id, request.user)
         if room is None:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # If room was marked ENDED but the slot time hasn't passed yet,
         # reset it so participants can rejoin (e.g. after a temporary disconnect).
@@ -92,7 +92,7 @@ class CallRoomDetailView(APIView):
                 CallRoom.objects.filter(id=room.id).update(status=CallRoom.STATUS_WAITING)
                 room.status = CallRoom.STATUS_WAITING
             else:
-                return Response({"detail": "Call has ended."}, status=status.HTTP_403_FORBIDDEN)
+                return Response({"message": "Call has ended."}, status=status.HTTP_403_FORBIDDEN)
 
         data = CallRoomSerializer(room, context={"request": request}).data
 
@@ -123,10 +123,10 @@ class EndCallView(APIView):
     def post(self, request, room_id):
         room = _get_room_for_user(room_id, request.user)
         if room is None:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if room.status == CallRoom.STATUS_ENDED:
-            return Response({"detail": "Call already ended."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Call already ended."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Stop active recordings
         for rec in room.recordings.filter(status=CallRecording.STATUS_RECORDING):
@@ -148,7 +148,7 @@ class EndCallView(APIView):
         room.ended_at = timezone.now()
         room.save(update_fields=["status", "ended_at", "updated_at"])
 
-        return Response({"detail": "Call ended."}, status=status.HTTP_200_OK)
+        return Response({"message": "Call ended."}, status=status.HTTP_200_OK)
 
 
 class CallMessageListView(generics.ListAPIView):
@@ -177,22 +177,22 @@ class CallFileUploadView(APIView):
     def post(self, request, room_id):
         room = _get_room_for_user(room_id, request.user)
         if room is None:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if room.status == CallRoom.STATUS_ENDED:
             return Response(
-                {"detail": "Cannot upload to an ended call."},
+                {"message": "Cannot upload to an ended call."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         file = request.FILES.get("file")
         if not file:
-            return Response({"detail": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
 
         # 50 MB limit
         if file.size > 50 * 1024 * 1024:
             return Response(
-                {"detail": "File exceeds 50 MB limit."},
+                {"message": "File exceeds 50 MB limit."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -223,7 +223,7 @@ class CallNoteView(APIView):
     def get(self, request, room_id):
         room = self._get_room(room_id, request.user)
         if room is None:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
         note = CallNote.objects.filter(room=room, user=request.user).first()
         if note is None:
@@ -234,7 +234,7 @@ class CallNoteView(APIView):
     def post(self, request, room_id):
         room = self._get_room(room_id, request.user)
         if room is None:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
         content = request.data.get("content", "")
 
@@ -275,7 +275,7 @@ class LiveKitWebhookView(APIView):
             )
             if event_name is None:
                 return Response(
-                    {"detail": "Webhook verification failed."},
+                    {"message": "Webhook verification failed."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             return Response({"event": event_name}, status=status.HTTP_200_OK)
@@ -283,7 +283,7 @@ class LiveKitWebhookView(APIView):
         except Exception as e:
             logger.error("LiveKitWebhookView error: %s", e)
             return Response(
-                {"detail": "Internal error."},
+                {"message": "Internal error."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -340,11 +340,11 @@ class AdminCallRecordingSignedUrlView(APIView):
                 status=CallRecording.STATUS_READY,
             )
         except CallRecording.DoesNotExist:
-            return Response({"detail": "Recording not found or not ready."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Recording not found or not ready."}, status=status.HTTP_404_NOT_FOUND)
 
         if not recording.cloudinary_public_id:
             return Response(
-                {"detail": "No Cloudinary asset linked to this recording."},
+                {"message": "No Cloudinary asset linked to this recording."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -359,7 +359,7 @@ class AdminCallRecordingSignedUrlView(APIView):
 
             if url is None:
                 return Response(
-                    {"detail": "Failed to generate signed URL."},
+                    {"message": "Failed to generate signed URL."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
@@ -368,6 +368,6 @@ class AdminCallRecordingSignedUrlView(APIView):
         except Exception as e:
             logger.error("AdminCallRecordingSignedUrlView [%s]: %s", recording_id, e)
             return Response(
-                {"detail": "Internal error."},
+                {"message": "Internal error."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

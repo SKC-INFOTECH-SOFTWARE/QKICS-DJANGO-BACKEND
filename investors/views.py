@@ -58,7 +58,7 @@ class InvestorProfileSelfView(APIView):
         try:
             investor = request.user.investor_profile
         except Investor.DoesNotExist:
-            return Response({"detail": "Investor profile not found."}, status=404)
+            return Response({"message": "Investor profile not found."}, status=404)
 
         serializer = InvestorReadSerializer(investor, context={"request": request})
         return Response(serializer.data)
@@ -67,7 +67,7 @@ class InvestorProfileSelfView(APIView):
         try:
             investor = request.user.investor_profile
         except Investor.DoesNotExist:
-            return Response({"detail": "Investor profile not found."}, status=404)
+            return Response({"message": "Investor profile not found."}, status=404)
 
         serializer = InvestorWriteSerializer(investor, data=request.data, partial=True)
         if serializer.is_valid():
@@ -179,7 +179,7 @@ class AdminVerifyInvestorView(APIView):
                 if serializer.validated_data["action"] == "approve"
                 else "rejected"
             )
-            return Response({"detail": f"Investor {action}."})
+            return Response({"message": f"Investor {action}."})
         return Response(serializer.errors, status=400)
 
 

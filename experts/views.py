@@ -111,7 +111,7 @@ class ExpertProfileSelfView(APIView):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
             return Response(
-                {"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
+                {"message": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
             )
         serializer = ExpertProfileReadSerializer(profile, context={"request": request})
         return Response(serializer.data)
@@ -128,7 +128,7 @@ class ExpertProfileSelfView(APIView):
         # create profile if not exists
         if hasattr(request.user, "expert_profile"):
             return Response(
-                {"detail": "Expert profile already exists."},
+                {"message": "Expert profile already exists."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -148,12 +148,12 @@ class ExpertProfileSelfView(APIView):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
             return Response(
-                {"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
+                {"message": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
             )
 
         if not _is_profile_owner(request, profile):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
 
         serializer = ExpertProfileWriteSerializer(
@@ -170,12 +170,12 @@ class ExpertProfileSelfView(APIView):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
             return Response(
-                {"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
+                {"message": "Profile not found."}, status=status.HTTP_404_NOT_FOUND
             )
 
         if not _is_profile_owner(request, profile):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
 
         serializer = ExpertProfileWriteSerializer(
@@ -199,13 +199,13 @@ class ExpertApplicationSubmitView(APIView):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
             return Response(
-                {"detail": "Create profile first before submitting."},
+                {"message": "Create profile first before submitting."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         if profile.application_status == "pending":
             return Response(
-                {"detail": "Application already pending."},
+                {"message": "Application already pending."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -215,7 +215,7 @@ class ExpertApplicationSubmitView(APIView):
         if serializer.is_valid():
             serializer.save(expert_profile=profile)
             return Response(
-                {"detail": "Application submitted."}, status=status.HTTP_200_OK
+                {"message": "Application submitted."}, status=status.HTTP_200_OK
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -286,7 +286,7 @@ class ExperienceCreateView(APIView):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
             return Response(
-                {"detail": "Create expert profile first."},
+                {"message": "Create expert profile first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -318,7 +318,7 @@ class ExperienceDetailView(APIView):
         exp = self.get_object(pk)
         if not _is_expert_owner(request, exp):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
 
         serializer = ExperienceWriteSerializer(
@@ -335,7 +335,7 @@ class ExperienceDetailView(APIView):
         exp = self.get_object(pk)
         if not _is_expert_owner(request, exp):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
 
         serializer = ExperienceWriteSerializer(
@@ -352,7 +352,7 @@ class ExperienceDetailView(APIView):
         exp = self.get_object(pk)
         if not _is_expert_owner(request, exp):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         exp.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -368,7 +368,7 @@ class EducationCreateView(APIView):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
             return Response(
-                {"detail": "Create expert profile first."},
+                {"message": "Create expert profile first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -398,7 +398,7 @@ class EducationDetailView(APIView):
         edu = self.get_object(pk)
         if not _is_expert_owner(request, edu):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         serializer = EducationWriteSerializer(
             edu, data=request.data, partial=False, context={"request": request}
@@ -414,7 +414,7 @@ class EducationDetailView(APIView):
         edu = self.get_object(pk)
         if not _is_expert_owner(request, edu):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         serializer = EducationWriteSerializer(
             edu, data=request.data, partial=True, context={"request": request}
@@ -430,7 +430,7 @@ class EducationDetailView(APIView):
         edu = self.get_object(pk)
         if not _is_expert_owner(request, edu):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         edu.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -446,7 +446,7 @@ class CertificationCreateView(APIView):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
             return Response(
-                {"detail": "Create expert profile first."},
+                {"message": "Create expert profile first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -478,7 +478,7 @@ class CertificationDetailView(APIView):
         cert = self.get_object(pk)
         if not _is_expert_owner(request, cert):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         serializer = CertificationWriteSerializer(
             cert, data=request.data, partial=False, context={"request": request}
@@ -494,7 +494,7 @@ class CertificationDetailView(APIView):
         cert = self.get_object(pk)
         if not _is_expert_owner(request, cert):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         serializer = CertificationWriteSerializer(
             cert, data=request.data, partial=True, context={"request": request}
@@ -510,7 +510,7 @@ class CertificationDetailView(APIView):
         cert = self.get_object(pk)
         if not _is_expert_owner(request, cert):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         cert.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -526,7 +526,7 @@ class HonorAwardCreateView(APIView):
         profile = getattr(request.user, "expert_profile", None)
         if not profile:
             return Response(
-                {"detail": "Create expert profile first."},
+                {"message": "Create expert profile first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -558,7 +558,7 @@ class HonorAwardDetailView(APIView):
         award = self.get_object(pk)
         if not _is_expert_owner(request, award):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         serializer = HonorAwardWriteSerializer(
             award, data=request.data, partial=False, context={"request": request}
@@ -574,7 +574,7 @@ class HonorAwardDetailView(APIView):
         award = self.get_object(pk)
         if not _is_expert_owner(request, award):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         serializer = HonorAwardWriteSerializer(
             award, data=request.data, partial=True, context={"request": request}
@@ -590,7 +590,7 @@ class HonorAwardDetailView(APIView):
         award = self.get_object(pk)
         if not _is_expert_owner(request, award):
             return Response(
-                {"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
+                {"message": "Not authorized."}, status=status.HTTP_403_FORBIDDEN
             )
         award.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

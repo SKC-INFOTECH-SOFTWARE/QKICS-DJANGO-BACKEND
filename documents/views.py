@@ -99,7 +99,7 @@ class DocumentDownloadView(APIView):
 
         if not allowed:
             return Response(
-                {"detail": reason},
+                {"message": reason},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -107,7 +107,7 @@ class DocumentDownloadView(APIView):
             enforce_download_limit(request.user)
         except Exception as e:
             return Response(
-                {"detail": str(e)},
+                {"message": str(e)},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -223,7 +223,7 @@ class UserDocumentToggleStatusView(APIView):
 
         if is_active is None:
             return Response(
-                {"detail": "is_active field is required"},
+                {"message": "is_active field is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

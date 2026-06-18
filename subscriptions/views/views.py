@@ -54,7 +54,7 @@ class SubscribeView(APIView):
         # -----------------------------
         if not plan_uuid:
             return Response(
-                {"detail": "plan_uuid is required"},
+                {"message": "plan_uuid is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -68,7 +68,7 @@ class SubscribeView(APIView):
             )
         except SubscriptionPlan.DoesNotExist:
             return Response(
-                {"detail": "Invalid subscription plan"},
+                {"message": "Invalid subscription plan"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -81,7 +81,7 @@ class SubscribeView(APIView):
             end_date__gt=timezone.now(),
         ).exists():
             return Response(
-                {"detail": "You already have an active subscription"},
+                {"message": "You already have an active subscription"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -134,7 +134,7 @@ class MySubscriptionView(APIView):
 
         if not subscription:
             return Response(
-                {"detail": "No active subscription"},
+                {"message": "No active subscription"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 

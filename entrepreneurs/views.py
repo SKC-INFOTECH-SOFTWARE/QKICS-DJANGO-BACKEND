@@ -61,7 +61,7 @@ class EntrepreneurProfileSelfView(APIView):
     def get(self, request):
         profile = getattr(request.user, "entrepreneur_profile", None)
         if not profile:
-            return Response({"detail": "Profile not found."}, status=404)
+            return Response({"message": "Profile not found."}, status=404)
         serializer = EntrepreneurProfileReadSerializer(
             profile, context={"request": request}
         )
@@ -95,7 +95,7 @@ class EntrepreneurProfileSelfView(APIView):
     def patch(self, request):
         profile = getattr(request.user, "entrepreneur_profile", None)
         if not profile:
-            return Response({"detail": "Profile not found."}, status=404)
+            return Response({"message": "Profile not found."}, status=404)
 
         serializer = EntrepreneurProfileWriteSerializer(
             profile, data=request.data, partial=True
@@ -117,14 +117,14 @@ class EntrepreneurApplicationSubmitView(APIView):
     def post(self, request):
         profile = getattr(request.user, "entrepreneur_profile", None)
         if not profile:
-            return Response({"detail": "Create profile first."}, status=400)
+            return Response({"message": "Create profile first."}, status=400)
         if profile.application_status != "draft":
-            return Response({"detail": "Application already submitted."}, status=400)
+            return Response({"message": "Application already submitted."}, status=400)
 
         serializer = EntrepreneurApplicationSubmitSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(profile=profile)
-            return Response({"detail": "Application submitted successfully."})
+            return Response({"message": "Application submitted successfully."})
         return Response(serializer.errors, status=400)
 
 

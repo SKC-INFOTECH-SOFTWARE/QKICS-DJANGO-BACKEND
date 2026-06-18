@@ -28,7 +28,7 @@ class FakeBookingPaymentView(APIView):
         # FAKE: set directly to CONFIRMED — no approval or payment step needed
         if booking.status not in (Booking.STATUS_PENDING, Booking.STATUS_AWAITING_PAYMENT):
             return Response(
-                {"detail": f"Cannot pay for booking in {booking.status} state"},
+                {"message": f"Cannot pay for booking in {booking.status} state"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
