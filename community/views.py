@@ -245,10 +245,10 @@ class CommentListCreateView(ListAPIView):
                 author=request.user,
                 created_at__date=today,
             ).count()
-            >= 100
+            >= 15
         ):
             return Response(
-                {"error": "Daily comment+reply limit reached (100 per day)."},
+                {"message": "Daily comment+reply limit reached (100 per day)."},
                 status=429,
             )
 
@@ -286,7 +286,7 @@ class CommentDetailView(APIView):
         comment = get_object_or_404(Comment, id=comment_id)
 
         if comment.author != request.user:
-            return Response({"error": "Not authorized"}, status=403)
+            return Response({"message": "Not authorized"}, status=403)
 
         serializer = CommentCreateSerializer(
             comment,
@@ -302,7 +302,7 @@ class CommentDetailView(APIView):
         comment = get_object_or_404(Comment, id=comment_id)
 
         if comment.author != request.user:
-            return Response({"error": "Not authorized"}, status=403)
+            return Response({"message": "Not authorized"}, status=403)
 
         comment.delete()
         return Response(status=204)
@@ -330,7 +330,7 @@ class ReplyListCreateView(ListAPIView):
         parent = get_object_or_404(Comment, id=comment_id)
 
         if parent.parent is not None:
-            return Response({"error": "Cannot reply to a reply"}, status=400)
+            return Response({"message": "Cannot reply to a reply"}, status=400)
 
         serializer = CommentCreateSerializer(
             data=request.data,
