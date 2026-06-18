@@ -25,6 +25,7 @@ from notifications.services.events import (
     notify_company_member_added,
     notify_company_member_removed,
 )
+from rest_framework.filters import SearchFilter
 from rest_framework.parsers import MultiPartParser, FormParser
 
 # =====================================================
@@ -56,9 +57,21 @@ class CompanyListView(generics.ListAPIView):
     serializer_class = CompanySerializer
     permission_classes = [AllowAny]
     pagination_class = CompanyCursorPagination
+    filter_backends = [SearchFilter]
+    search_fields = [
+        "name",
+        "description",
+        "website",
+    ]
 
     def get_queryset(self):
-        return Company.objects.filter(status="approved").select_related("owner")
+        # return Company.objects.filter(status="approved").select_related("owner")
+        return (
+            Company.objects.filter(status="approved")
+            .select_related("owner")
+            .prefetch_related("members__user")
+            .distinct()
+        )
 
 
 # =====================================================
@@ -223,6 +236,7 @@ class CompanyPostListView(generics.ListAPIView):
     permission_classes = [AllowAny]
     pagination_class = CompanyCursorPagination
 
+
     def get_queryset(self):
 
         company_id = self.kwargs["company_id"]
@@ -249,7 +263,11 @@ class CompanyPostFeedView(generics.ListAPIView):
     serializer_class = CompanyPostSerializer
     permission_classes = [AllowAny]
     pagination_class = CompanyCursorPagination
-
+    filter_backends = [SearchFilter]
+    search_fields = [
+        "title",
+        "content",
+    ]
     queryset = (
         CompanyPost.objects.filter(
             is_active=True,
