@@ -417,6 +417,9 @@ class UserSearchAPIView(ListAPIView):
 
     def get_queryset(self):
         query = self.request.query_params.get("q", "").strip()
+        user_type_filter = (
+            self.request.query_params.get("user_type", "").strip().lower()
+        )
 
         if not query:
             return User.objects.none()
@@ -425,7 +428,8 @@ class UserSearchAPIView(ListAPIView):
             User.objects.filter(
                 Q(username__icontains=query)
                 | Q(first_name__icontains=query)
-                | Q(last_name__icontains=query),
+                | Q(last_name__icontains=query)
+                | Q(user_type__in=[user_type_filter]),
                 is_active=True,
                 status="active",
             )

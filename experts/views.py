@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django.shortcuts import get_object_or_404
-
+from rest_framework.filters import SearchFilter
 from .models import (
     ExpertProfile,
     ExpertExperience,
@@ -59,6 +59,14 @@ class ExpertListView(ListAPIView):
     serializer_class = ExpertProfileReadSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     pagination_class = ExpertCursorPagination
+
+    filter_backends = [SearchFilter]
+
+    search_fields = [
+        "user__first_name",
+        "user__last_name",
+        "user__username",
+    ]
 
     def get_queryset(self):
         return (
