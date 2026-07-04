@@ -13,7 +13,8 @@
       "Bash(grep -E \"\\(rplatform|urls.py$\\)\")",
       "Bash(python manage.py makemigrations --check)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(python manage.py migrate bookings)"
+      "Bash(python manage.py migrate bookings)",
+      "Bash(sudo cat *)"
     ]
   }
 }
