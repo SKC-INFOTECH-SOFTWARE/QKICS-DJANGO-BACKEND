@@ -2,8 +2,10 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
 
 urlpatterns = [
+    path("api/v1/health/", lambda r: JsonResponse({"status": "ok"}), name="health"),
     path("admin/", admin.site.urls),
     path('api/v1/auth/', include('users.urls')),
     path("api/v1/experts/", include("experts.urls")),

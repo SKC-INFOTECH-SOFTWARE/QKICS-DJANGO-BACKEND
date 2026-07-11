@@ -9,7 +9,67 @@ from django.utils import timezone
 from .models import Notification
 from .serializers import NotificationSerializer
 from .pagination import NotificationCursorPagination
-from .services.client import register_push_token, unregister_push_token
+from .services.client import (
+    register_push_token,
+    unregister_push_token,
+    fetch_user_notifications,
+    mark_notification_read as svc_mark_notification_read,
+)
+
+
+class ServiceInboxView(APIView):
+    """
+    GET /api/v1/notifications/inbox/
+
+    Server-side proxy to the external notification service (bell / inbox).
+    The browser cannot call the service directly (no CORS), so we forward
+    the request here with the x-api-key attached server-side.
+
+    Query params: limit, offset, channel (default IN_APP), status (optional).
+    Returns the service JSON: {"success", "data": {notifications, total, unreadCount}}.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        result = fetch_user_notifications(
+            user_id=request.user.id,
+            limit=request.query_params.get("limit", 20),
+            offset=request.query_params.get("offset", 0),
+            channel=request.query_params.get("channel", "IN_APP"),
+            status=request.query_params.get("status"),
+        )
+
+        # On failure return 200 with success=False (NOT 5xx) so the frontend
+        # doesn't treat it as a server-down and redirect the user.
+        if result is None:
+            return Response(
+                {"success": False, "data": None},
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class ServiceMarkReadView(APIView):
+    """
+    PATCH /api/v1/notifications/inbox/<notification_id>/read/
+
+    Proxy mark-one-as-read to the external service. `notification_id` is the
+    service "_id" from the inbox list (a plain string, not a local UUID).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, notification_id):
+        result = svc_mark_notification_read(notification_id)
+        if result is None:
+            return Response({"success": False}, status=status.HTTP_200_OK)
+        return Response(result, status=status.HTTP_200_OK)
+
+    def post(self, request, notification_id):
+        # Allow POST as well for convenience.
+        return self.patch(request, notification_id)
 
 
 class NotificationListView(ListAPIView):

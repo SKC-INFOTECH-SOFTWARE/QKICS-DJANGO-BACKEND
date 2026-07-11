@@ -262,3 +262,88 @@ def unregister_push_token(*, token: str):
     except requests.exceptions.RequestException as e:
         logger.error("Failed to unregister push token: %s", str(e))
     return None
+
+
+# ─────────────────────────────────────────────────────────────
+# INBOX READ-THROUGH (proxy)
+# The browser cannot call the notification service directly
+# (the service does not send CORS headers), so the frontend calls
+# our Django API and these helpers read the service server-side,
+# attaching the x-api-key. The API key never reaches the browser.
+# ─────────────────────────────────────────────────────────────
+
+
+def fetch_user_notifications(
+    *, user_id, limit=20, offset=0, channel="IN_APP", status=None
+):
+    """
+    Read a user's notifications from the external service (bell / inbox).
+
+    Returns the parsed service JSON — {"success": ..., "data": {notifications,
+    total, unreadCount}} — or None on failure.
+    """
+    if not settings.NOTIFICATION_API_KEY:
+        logger.warning("NOTIFICATION_API_KEY not set. Cannot fetch notifications.")
+        return None
+
+    params = {
+        "userId": str(user_id),
+        "limit": limit,
+        "offset": offset,
+        "channel": channel,
+    }
+    if status:
+        params["status"] = status
+
+    try:
+        response = requests.get(
+            f"{settings.NOTIFICATION_SERVICE_URL}/api/notifications",
+            params=params,
+            headers=_headers(),
+            timeout=10,
+        )
+        if not response.ok:
+            logger.error(
+                "Fetch notifications failed %s: %s",
+                response.status_code,
+                response.text,
+            )
+            return None
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(
+            "Failed to fetch notifications for user %s: %s", user_id, str(e)
+        )
+    return None
+
+
+def mark_notification_read(notification_id):
+    """
+    Mark one notification as read on the external service.
+
+    `notification_id` is the service "_id" returned in the inbox list.
+    Returns the parsed JSON or None on failure.
+    """
+    if not settings.NOTIFICATION_API_KEY:
+        logger.warning("NOTIFICATION_API_KEY not set. Cannot mark notification read.")
+        return None
+
+    try:
+        response = requests.patch(
+            f"{settings.NOTIFICATION_SERVICE_URL}/api/notifications/{notification_id}/read",
+            headers=_headers(),
+            timeout=10,
+        )
+        if not response.ok:
+            logger.error(
+                "Mark notification read failed %s: %s",
+                response.status_code,
+                response.text,
+            )
+            return None
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(
+            "Failed to mark notification %s as read: %s", notification_id, str(e)
+        )
+    return None

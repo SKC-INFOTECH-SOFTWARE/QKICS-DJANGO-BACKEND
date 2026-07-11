@@ -8,6 +8,8 @@ from .views import (
     NotificationDeleteAllView,
     PushTokenRegisterView,
     PushTokenUnregisterView,
+    ServiceInboxView,
+    ServiceMarkReadView,
 )
 
 urlpatterns = [
@@ -20,6 +22,23 @@ urlpatterns = [
         "",
         NotificationListView.as_view(),
         name="notification-list",
+    ),
+    # ─────────────────────────────────────────
+    # EXTERNAL SERVICE PROXY (bell / inbox)
+    # GET   /api/v1/notifications/inbox/
+    # PATCH /api/v1/notifications/inbox/<id>/read/
+    # Reads the external notification microservice server-side
+    # (browser can't call it directly — no CORS).
+    # ─────────────────────────────────────────
+    path(
+        "inbox/",
+        ServiceInboxView.as_view(),
+        name="notification-service-inbox",
+    ),
+    path(
+        "inbox/<str:notification_id>/read/",
+        ServiceMarkReadView.as_view(),
+        name="notification-service-mark-read",
     ),
     # ─────────────────────────────────────────
     # UNREAD COUNT

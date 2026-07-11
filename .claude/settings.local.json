@@ -14,7 +14,19 @@
       "Bash(python manage.py makemigrations --check)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(python manage.py migrate bookings)",
-      "Bash(sudo cat *)"
+      "Bash(sudo cat *)",
+      "Read(//d/d/qkics/**)",
+      "Read(//d/d/qkics/frontend/**)",
+      "Bash(bun run *)",
+      "Bash(bunx eslint *)",
+      "Bash(grep -rhoE \"\\(blue|indigo|sky\\)-[0-9]{2,3}\" src/admin)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -m 20 \"https://notification.mesmi.co.in/api/notifications?userId=1&limit=5&offset=0&channel=IN_APP\" -H \"x-api-key: ns_skc_d81ae6b063768ddb8b4d553c922d71fe6f68c6bb\")",
+      "Bash(curl -s -m 20 -o /dev/null -w \"%{http_code}\" \"https://notification.mesmi.co.in/api/notifications?userId=1&limit=5\" -H \"x-api-key: ns_skc_d81ae6b063768ddb8b4d553c922d71fe6f68c6bb\")",
+      "Bash(curl -s -m 20 -i -X OPTIONS \"https://notification.mesmi.co.in/api/notifications?userId=1\" -H \"Origin: http://localhost:5173\" -H \"Access-Control-Request-Method: GET\" -H \"Access-Control-Request-Headers: x-api-key\")",
+      "Bash(curl -s -m 20 -i \"https://notification.mesmi.co.in/api/notifications?userId=1\" -H \"Origin: http://localhost:5173\" -H \"x-api-key: ns_skc_d81ae6b063768ddb8b4d553c922d71fe6f68c6bb\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('notifications/views.py'\\).read\\(\\)\\); ast.parse\\(open\\('notifications/urls.py'\\).read\\(\\)\\); ast.parse\\(open\\('notifications/services/client.py'\\).read\\(\\)\\); print\\('PY SYNTAX OK'\\)\")",
+      "Bash(PROJECT_ENV=development python manage.py check)"
     ]
   }
 }
