@@ -84,13 +84,13 @@ class PayUPaymentService(BasePaymentService):
         # udf1 carries our payment uuid so the callback can locate it even if
         # txnid handling ever changes.
         udf1 = str(payment.uuid)
-        udf = [udf1, "", "", "", ""]
+        # PayU hashes 10 udf slots (udf1..udf10); we only use udf1.
+        udf = [udf1, "", "", "", "", "", "", "", "", ""]
 
         # Request hash:
-        # key|txnid|amount|productinfo|firstname|email|udf1|...|udf5||||||salt
-        hash_seq = [key, txnid, amount, productinfo, firstname, email] + udf
-        hash_str = "|".join(hash_seq) + "|||||" + salt
-        request_hash = _sha512(hash_str)
+        # key|txnid|amount|productinfo|firstname|email|udf1|udf2|...|udf10|salt
+        hash_fields = [key, txnid, amount, productinfo, firstname, email, *udf, salt]
+        request_hash = _sha512("|".join(hash_fields))
 
         params = {
             "key": key,
@@ -129,17 +129,15 @@ class PayUPaymentService(BasePaymentService):
         status = data.get("status", "")
         received_hash = (data.get("hash") or "").lower()
 
-        udf = [data.get(f"udf{i}", "") for i in range(1, 6)]
+        udf = [data.get(f"udf{i}", "") for i in range(1, 11)]  # udf1..udf10
 
-        # Reverse hash:
-        # salt|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
-        reverse_seq = (
-            [salt, status]
-            + ["", "", "", "", "", ""]
-            + list(reversed(udf))
-            + [email, firstname, productinfo, amount, txnid, key]
-        )
-        expected_hash = _sha512("|".join(reverse_seq))
+        # Reverse hash (mirror of the request, salt + status prepended):
+        # salt|status|udf10|udf9|...|udf1|email|firstname|productinfo|amount|txnid|key
+        reverse_fields = [
+            salt, status, *reversed(udf),
+            email, firstname, productinfo, amount, txnid, key,
+        ]
+        expected_hash = _sha512("|".join(reverse_fields))
 
         # Locate our payment (prefer udf1 = payment uuid, fall back to txnid).
         payment = None
