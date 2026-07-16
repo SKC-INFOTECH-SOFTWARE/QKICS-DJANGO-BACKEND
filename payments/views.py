@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -26,6 +28,8 @@ from django.utils import timezone
 # ============================================================
 # HELPERS
 # ============================================================
+
+logger = logging.getLogger(__name__)
 
 BOOKING_PAYABLE_STATES = (
     Booking.STATUS_PENDING,
@@ -197,11 +201,25 @@ class PaymentStatusView(APIView):
 
 def _handle_payu_return(request):
     """Verify PayU's POST-back, fulfil if valid, return (payment, ok)."""
-    data = request.POST.dict()
+    # PayU posts application/x-www-form-urlencoded. Under DRF, the body is
+    # parsed into request.data — request.POST is empty. Read request.data,
+    # falling back to POST/query for safety.
+    if hasattr(request.data, "dict"):
+        data = request.data.dict()
+    else:
+        data = dict(request.data or {})
+    if not data:
+        data = request.POST.dict() or request.query_params.dict()
+
+    logger.info("PayU callback received: keys=%s status=%s txnid=%s",
+                list(data.keys()), data.get("status"), data.get("txnid"))
+
     service = PayUPaymentService()
     payment, ok = service.verify_callback(data=data)
 
     if payment is None:
+        logger.warning("PayU callback: no matching payment (udf1=%s txnid=%s)",
+                       data.get("udf1"), data.get("txnid"))
         return None, False
 
     if ok:
