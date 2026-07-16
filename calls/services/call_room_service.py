@@ -48,6 +48,39 @@ def create_call_room_for_booking(*, booking):
     return call_room
 
 
+def get_or_create_batch_call_room(*, slot):
+    """
+    One shared CallRoom per BATCH ExpertSlot.
+
+    Called from confirm_booking when a batch booking is confirmed. Idempotent —
+    the first confirmed booking creates the room (+ LiveKit room sized to the
+    slot capacity + expert), later confirmations reuse it. `slot` being a
+    OneToOne on CallRoom guarantees a single room per slot at the DB level.
+    """
+    room_name = f"batch_slot_{slot.uuid}"
+
+    call_room, created = CallRoom.objects.get_or_create(
+        slot=slot,
+        defaults={
+            "advisor": slot.expert,
+            "scheduled_start": slot.start_datetime,
+            "scheduled_end": slot.end_datetime,
+            "sfu_room_name": room_name,
+        },
+    )
+
+    if created:
+        # capacity users + the expert
+        create_livekit_room(
+            room_name,
+            empty_timeout=_slot_empty_timeout(slot.end_datetime),
+            max_participants=slot.capacity + 1,
+        )
+        schedule_auto_cut(call_room=call_room)
+
+    return call_room
+
+
 def create_call_room_for_investor_booking(*, investor_booking):
     """
     Create CallRoom for an InvestorBooking.

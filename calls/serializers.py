@@ -39,11 +39,12 @@ class CallRoomSerializer(serializers.ModelSerializer):
     advisor          = CallUserSerializer(read_only=True)
     duration_seconds = serializers.IntegerField(read_only=True)
     can_join         = serializers.SerializerMethodField()
+    is_batch         = serializers.BooleanField(read_only=True)
 
     class Meta:
         model            = CallRoom
         fields           = [
-            "id", "status", "user", "advisor",
+            "id", "status", "user", "advisor", "is_batch",
             "scheduled_start", "scheduled_end",
             "started_at", "ended_at",
             "duration_seconds", "can_join", "created_at",
@@ -71,6 +72,8 @@ class CallNoteSerializer(serializers.ModelSerializer):
         user  = request.user
         room  = obj.room
         other = room.advisor if room.user_id == user.id else room.user
+        if other is None:  # batch room has no single counterpart user
+            return room.advisor.get_full_name() or room.advisor.username
         return other.get_full_name() or other.username
 
 

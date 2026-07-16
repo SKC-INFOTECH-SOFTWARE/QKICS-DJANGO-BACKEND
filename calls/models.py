@@ -27,8 +27,18 @@ class CallRoom(models.Model):
         "bookings.InvestorBooking", null=True, blank=True,
         on_delete=models.SET_NULL, related_name="call_room",
     )
+    # BATCH (group video call): one shared room per ExpertSlot. Membership is
+    # every user with a CONFIRMED booking on this slot (+ the expert as advisor).
+    # `booking` and `user` stay null for batch rooms.
+    slot = models.OneToOneField(
+        "bookings.ExpertSlot", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="call_room",
+    )
 
-    user    = models.ForeignKey(User, on_delete=models.CASCADE, related_name="call_rooms_as_user")
+    user    = models.ForeignKey(
+        User, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="call_rooms_as_user",
+    )
     advisor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="call_rooms_as_advisor")
 
     status        = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_WAITING, db_index=True)
@@ -62,6 +72,10 @@ class CallRoom(models.Model):
         if self.started_at and self.ended_at:
             return int((self.ended_at - self.started_at).total_seconds())
         return None
+
+    @property
+    def is_batch(self):
+        return self.slot_id is not None
 
     def can_join(self):
         if self.status == self.STATUS_ENDED:

@@ -17,6 +17,16 @@ class ExpertSlot(models.Model):
     User chooses session type at booking time.
     """
 
+    MODE_ONE_TO_ONE = "ONE_TO_ONE"
+    MODE_BATCH = "BATCH"
+    SLOT_MODE_CHOICES = (
+        (MODE_ONE_TO_ONE, "One to One"),
+        (MODE_BATCH, "Batch (Group Video Call)"),
+    )
+
+    # Max users allowed to book a single BATCH slot (business cap).
+    MAX_BATCH_CAPACITY = 10
+
     id = models.BigAutoField(primary_key=True)
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     expert = models.ForeignKey(
@@ -31,6 +41,21 @@ class ExpertSlot(models.Model):
     video_call_price = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal("0.00")
     )
+
+    # ── Batch (group video call) mode ──────────────────────────────
+    # ONE_TO_ONE (default): existing behaviour — 1 booking, chat or video.
+    # BATCH: video-only group call; up to `capacity` users book the same
+    # slot, each paying `batch_price`. See helpers below.
+    slot_mode = models.CharField(
+        max_length=16,
+        choices=SLOT_MODE_CHOICES,
+        default=MODE_ONE_TO_ONE,
+    )
+    capacity = models.PositiveIntegerField(default=1)  # BATCH: max users (2..MAX_BATCH_CAPACITY)
+    batch_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )  # BATCH: per-user video price
+
     requires_approval = models.BooleanField(default=True)
     is_recurring = models.BooleanField(default=False)
     status = models.CharField(
@@ -73,9 +98,21 @@ class ExpertSlot(models.Model):
         if self.start_datetime < timezone.now():
             raise ValidationError("Cannot create slots in the past.")
 
+        if self.slot_mode == self.MODE_BATCH:
+            if not (2 <= self.capacity <= self.MAX_BATCH_CAPACITY):
+                raise ValidationError(
+                    f"Batch capacity must be between 2 and {self.MAX_BATCH_CAPACITY}."
+                )
+            if self.batch_price <= 0:
+                raise ValidationError("Batch slots require a batch_price greater than 0.")
+
     _ACTIVE_BOOKING_STATUSES = [
         "PENDING", "AWAITING_PAYMENT", "PAID", "CONFIRMED"
     ]
+
+    @property
+    def is_batch(self):
+        return self.slot_mode == self.MODE_BATCH
 
     def _is_base_available(self):
         return self.status == "ACTIVE" and self.start_datetime > timezone.now()
@@ -85,7 +122,30 @@ class ExpertSlot(models.Model):
             status__in=self._ACTIVE_BOOKING_STATUSES,
         ).exists()
 
+    def active_booking_count(self):
+        return self.bookings.filter(
+            status__in=self._ACTIVE_BOOKING_STATUSES,
+        ).count()
+
+    def batch_seats_left(self):
+        """Remaining seats for a BATCH slot (0 for one-to-one)."""
+        if not self.is_batch:
+            return 0
+        return max(self.capacity - self.active_booking_count(), 0)
+
+    def is_batch_available(self):
+        """True if a BATCH slot still has an open seat."""
+        if not self.is_batch:
+            return False
+        if not self._is_base_available():
+            return False
+        if self.batch_price <= 0:
+            return False
+        return self.batch_seats_left() > 0
+
     def is_chat_available(self):
+        if self.is_batch:
+            return False
         if not self._is_base_available():
             return False
         if self.chat_price <= 0:
@@ -93,6 +153,8 @@ class ExpertSlot(models.Model):
         return not self._has_any_active_booking()
 
     def is_video_call_available(self):
+        if self.is_batch:
+            return False
         if not self._is_base_available():
             return False
         if self.video_call_price <= 0:
@@ -101,6 +163,8 @@ class ExpertSlot(models.Model):
 
     def is_available(self):
         """True if at least one session type is still bookable."""
+        if self.is_batch:
+            return self.is_batch_available()
         return self.is_chat_available() or self.is_video_call_available()
 
     def has_active_bookings(self):
@@ -238,6 +302,10 @@ class Booking(models.Model):
         choices=SESSION_TYPE_CHOICES,
         default=SESSION_TYPE_CHAT,
     )
+    # True when this booking belongs to a BATCH (group video call) slot.
+    # Denormalised from slot.slot_mode so the per-slot single-booking
+    # constraint below can be scoped to one-to-one bookings only.
+    is_batch = models.BooleanField(default=False)
     platform_fee_percent = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal("20.00")
     )
@@ -282,11 +350,14 @@ class Booking(models.Model):
             models.Index(fields=["slot", "status"]),  # For slot availability checks
         ]
         constraints = [
-            # Only ONE active booking per slot regardless of session_type
-            # Expert can only do one session at a time
+            # Only ONE active booking per ONE-TO-ONE slot regardless of
+            # session_type (expert can only do one such session at a time).
+            # BATCH slots (is_batch=True) are exempt — they allow up to
+            # `capacity` active bookings, enforced in the serializer.
             models.UniqueConstraint(
                 fields=["slot"],
-                condition=Q(
+                condition=Q(is_batch=False)
+                & Q(
                     status__in=[
                         "PENDING",
                         "AWAITING_PAYMENT",

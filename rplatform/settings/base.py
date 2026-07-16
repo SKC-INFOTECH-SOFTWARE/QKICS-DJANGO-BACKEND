@@ -229,3 +229,29 @@ CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", ...)
 TURN_HOST     = config("TURN_HOST", default="")
 TURN_USERNAME = config("TURN_USERNAME", default="")
 TURN_PASSWORD = config("TURN_PASSWORD", default="")
+
+# ==================================================
+# PAYMENTS (gateway-agnostic)
+# ==================================================
+# Which gateway is live. Swap the gateway by changing ONLY this value
+# (and adding the new service class). Callers never reference a gateway
+# directly — they go through payments.services.factory.get_payment_service().
+#   fake -> instant confirm (DEV ONLY)   |   payu -> PayU hosted checkout
+# Default is the REAL gateway so an unset prod env never silently bypasses
+# payment. "fake" is blocked at runtime when DEBUG=False (see factory).
+PAYMENT_GATEWAY = config("PAYMENT_GATEWAY", default="payu")
+
+# Where the browser is sent after a hosted-checkout redirect completes.
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:5173")
+# Public base URL of THIS backend (used to build PayU surl/furl if a request
+# object is unavailable). Leave blank to derive from the incoming request.
+BACKEND_BASE_URL = config("BACKEND_BASE_URL", default="")
+
+# ---- PayU (secrets — keep in untracked .env, never hardcode) ----
+PAYU_KEY  = config("PAYU_KEY", default="")
+PAYU_SALT = config("PAYU_SALT", default="")
+# "test" -> https://test.payu.in   |   "prod" -> https://secure.payu.in
+PAYU_MODE = config("PAYU_MODE", default="test")
+PAYU_BASE_URL = (
+    "https://secure.payu.in" if PAYU_MODE == "prod" else "https://test.payu.in"
+)

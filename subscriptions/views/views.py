@@ -5,8 +5,11 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.urls import reverse
+
 from payments.models import Payment
-from payments.services.fake import FakePaymentService
+from payments.services.factory import get_payment_service
+from payments.services.dispatch import fulfill_payment
 
 from subscriptions.models import SubscriptionPlan, UserSubscription
 from subscriptions.serializers import (
@@ -14,7 +17,6 @@ from subscriptions.serializers import (
     UserSubscriptionSerializer,
 )
 from subscriptions.services.access import get_active_subscription
-from notifications.services.events import notify_subscription_activated
 
 
 class SubscriptionPlanListView(generics.ListAPIView):
@@ -86,37 +88,59 @@ class SubscribeView(APIView):
             )
 
         # -----------------------------
-        # Step 1: Fake payment
+        # Step 1: Start payment via the configured gateway
         # -----------------------------
-        payment_service = FakePaymentService()
+        service = get_payment_service()
 
-        payment = payment_service.create_payment(
+        payment = service.create_payment(
             user=request.user,
             purpose=Payment.PURPOSE_SUBSCRIPTION,
             reference_id=plan.uuid,
             amount=plan.price,
         )
 
-        # Confirm payment immediately (fake)
-        payment_service.confirm_payment(payment=payment)
-
-        # -----------------------------
-        # Step 2: Create subscription
-        # -----------------------------
-        start_date = timezone.now()
-        end_date = start_date + timedelta(days=plan.duration_days)
-
-        subscription = UserSubscription.objects.create(
-            user=request.user,
-            plan=plan,
-            start_date=start_date,
-            end_date=end_date,
-            is_active=True,
+        surl = request.build_absolute_uri(reverse("payu-callback-success"))
+        furl = request.build_absolute_uri(reverse("payu-callback-failure"))
+        instruction = service.start_checkout(
+            payment=payment,
+            customer={
+                "name": (request.user.get_full_name() or request.user.username or "Customer"),
+                "email": request.user.email or "",
+                "phone": getattr(request.user, "phone", "") or "",
+            },
+            surl=surl,
+            furl=furl,
         )
-        notify_subscription_activated(subscription)
+
+        # -----------------------------
+        # Instant gateways (fake): confirm + activate right away.
+        # -----------------------------
+        if instruction.get("flow") == "instant":
+            service.confirm_payment(payment=payment)
+            fulfill_payment(payment)
+            subscription = (
+                UserSubscription.objects.filter(user=request.user, is_active=True)
+                .order_by("-created_at")
+                .first()
+            )
+            return Response(
+                UserSubscriptionSerializer(subscription).data,
+                status=status.HTTP_201_CREATED,
+            )
+
+        # -----------------------------
+        # Hosted checkout (payu): return redirect params for the client.
+        # -----------------------------
         return Response(
-            UserSubscriptionSerializer(subscription).data,
-            status=status.HTTP_201_CREATED,
+            {
+                "flow": instruction["flow"],
+                "payment_uuid": str(payment.uuid),
+                "checkout": {
+                    "action_url": instruction["action_url"],
+                    "params": instruction["params"],
+                },
+            },
+            status=status.HTTP_200_OK,
         )
 
 

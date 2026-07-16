@@ -39,10 +39,12 @@ class Payment(models.Model):
 
     GATEWAY_FAKE = "FAKE"
     GATEWAY_RAZORPAY = "RAZORPAY"
+    GATEWAY_PAYU = "PAYU"
 
     GATEWAY_CHOICES = (
         (GATEWAY_FAKE, "Fake"),
         (GATEWAY_RAZORPAY, "Razorpay"),
+        (GATEWAY_PAYU, "PayU"),
     )
 
     # --------------------------------------------------

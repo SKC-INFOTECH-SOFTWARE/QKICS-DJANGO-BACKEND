@@ -99,22 +99,26 @@ def generate_participant_token(*, room_name: str, user) -> str:
 # ROOM MANAGEMENT
 # ──────────────────────────────────────────────────────
 
-async def _create_room(room_name: str, empty_timeout: int = 3600):
+async def _create_room(room_name: str, empty_timeout: int = 3600, max_participants: int = 2):
     from livekit import api as lkapi
     lk = _lk()
     try:
         return await lk.room.create_room(lkapi.CreateRoomRequest(
             name=room_name,
             empty_timeout=empty_timeout,
-            max_participants=2,
+            max_participants=max_participants,
         ))
     finally:
         await lk.aclose()
 
 
-def create_livekit_room(room_name: str, empty_timeout: int = 3600):
+def create_livekit_room(room_name: str, empty_timeout: int = 3600, max_participants: int = 2):
     try:
-        return _run(_create_room(room_name, empty_timeout=empty_timeout))
+        return _run(_create_room(
+            room_name,
+            empty_timeout=empty_timeout,
+            max_participants=max_participants,
+        ))
     except Exception as e:
         logger.error("create_livekit_room [%s]: %s", room_name, e)
 
@@ -158,6 +162,111 @@ def disconnect_all_participants(room_name: str):
         _run(_disconnect_all(room_name))
     except Exception as e:
         logger.error("disconnect_all_participants [%s]: %s", room_name, e)
+
+
+async def _mute_participant_mic(room_name: str, identity: str):
+    """Server-side force-mute of a participant's microphone track(s)."""
+    from livekit import api as lkapi
+    from livekit.protocol import models as lkm
+
+    lk = _lk()
+    try:
+        participant = await lk.room.get_participant(
+            lkapi.RoomParticipantIdentity(room=room_name, identity=identity)
+        )
+        muted_any = False
+        for pub in participant.tracks:
+            is_mic = (
+                pub.source == lkm.TrackSource.MICROPHONE
+                or pub.type == lkm.TrackType.AUDIO
+            )
+            if is_mic and not pub.muted:
+                await lk.room.mute_published_track(
+                    lkapi.MutePublishedTrackRequest(
+                        room=room_name,
+                        identity=identity,
+                        track_sid=pub.sid,
+                        muted=True,
+                    )
+                )
+                muted_any = True
+        return muted_any
+    finally:
+        await lk.aclose()
+
+
+def mute_participant_mic(room_name: str, identity: str) -> bool:
+    """Force-mute a participant's mic. Used by the host (expert) in group calls."""
+    try:
+        return bool(_run(_mute_participant_mic(room_name, identity)))
+    except Exception as e:
+        logger.error("mute_participant_mic [%s/%s]: %s", room_name, identity, e)
+        return False
+
+
+async def _mute_all_mics(room_name: str, except_identity: str | None):
+    """Force-mute every participant's mic except `except_identity` (the host)."""
+    from livekit import api as lkapi
+    from livekit.protocol import models as lkm
+
+    lk = _lk()
+    try:
+        resp = await lk.room.list_participants(
+            lkapi.ListParticipantsRequest(room=room_name)
+        )
+        count = 0
+        for p in resp.participants:
+            if except_identity and p.identity == except_identity:
+                continue
+            for pub in p.tracks:
+                is_mic = (
+                    pub.source == lkm.TrackSource.MICROPHONE
+                    or pub.type == lkm.TrackType.AUDIO
+                )
+                if is_mic and not pub.muted:
+                    await lk.room.mute_published_track(
+                        lkapi.MutePublishedTrackRequest(
+                            room=room_name,
+                            identity=p.identity,
+                            track_sid=pub.sid,
+                            muted=True,
+                        )
+                    )
+                    count += 1
+        return count
+    finally:
+        await lk.aclose()
+
+
+def mute_all_participants(room_name: str, except_identity: str | None = None) -> int:
+    """Mute everyone's mic (host stays unmuted). Returns number of tracks muted."""
+    try:
+        return int(_run(_mute_all_mics(room_name, except_identity)))
+    except Exception as e:
+        logger.error("mute_all_participants [%s]: %s", room_name, e)
+        return 0
+
+
+async def _remove_participant(room_name: str, identity: str):
+    from livekit import api as lkapi
+
+    lk = _lk()
+    try:
+        await lk.room.remove_participant(
+            lkapi.RoomParticipantIdentity(room=room_name, identity=identity)
+        )
+    finally:
+        await lk.aclose()
+
+
+def remove_participant(room_name: str, identity: str) -> bool:
+    """Disconnect a participant from the live call. Used by the host."""
+    try:
+        _run(_remove_participant(room_name, identity))
+        return True
+    except Exception as e:
+        logger.error("remove_participant [%s/%s]: %s", room_name, identity, e)
+        return False
 
 
 # ──────────────────────────────────────────────────────

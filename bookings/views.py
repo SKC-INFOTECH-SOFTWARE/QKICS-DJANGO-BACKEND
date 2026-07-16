@@ -47,13 +47,21 @@ class ExpertSlotListView(generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        from django.db.models import OuterRef
+        from django.db.models import Count, F, Q
 
         expert_uuid = self.kwargs["expert_id"]
 
-        already_booked = Booking.objects.filter(
-            slot=OuterRef("pk"),
-            status__in=Booking.ACTIVE_STATUSES,
+        # One-to-one slots: available only while they have zero active bookings.
+        # Batch slots: available while active bookings < capacity (seats left).
+        one_to_one_available = (
+            Q(slot_mode=ExpertSlot.MODE_ONE_TO_ONE)
+            & Q(active_count=0)
+            & (Q(chat_price__gt=0) | Q(video_call_price__gt=0))
+        )
+        batch_available = (
+            Q(slot_mode=ExpertSlot.MODE_BATCH)
+            & Q(active_count__lt=F("capacity"))
+            & Q(batch_price__gt=0)
         )
 
         return (
@@ -62,11 +70,13 @@ class ExpertSlotListView(generics.ListAPIView):
                 status="ACTIVE",
                 start_datetime__gt=timezone.now(),
             )
-            .annotate(is_booked=models.Exists(already_booked))
-            .filter(
-                is_booked=False,
+            .annotate(
+                active_count=Count(
+                    "bookings",
+                    filter=Q(bookings__status__in=Booking.ACTIVE_STATUSES),
+                )
             )
-            .filter(models.Q(chat_price__gt=0) | models.Q(video_call_price__gt=0))
+            .filter(one_to_one_available | batch_available)
             .order_by("start_datetime")
         )
 

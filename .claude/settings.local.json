@@ -26,7 +26,25 @@
       "Bash(curl -s -m 20 -i -X OPTIONS \"https://notification.mesmi.co.in/api/notifications?userId=1\" -H \"Origin: http://localhost:5173\" -H \"Access-Control-Request-Method: GET\" -H \"Access-Control-Request-Headers: x-api-key\")",
       "Bash(curl -s -m 20 -i \"https://notification.mesmi.co.in/api/notifications?userId=1\" -H \"Origin: http://localhost:5173\" -H \"x-api-key: ns_skc_d81ae6b063768ddb8b4d553c922d71fe6f68c6bb\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('notifications/views.py'\\).read\\(\\)\\); ast.parse\\(open\\('notifications/urls.py'\\).read\\(\\)\\); ast.parse\\(open\\('notifications/services/client.py'\\).read\\(\\)\\); print\\('PY SYNTAX OK'\\)\")",
-      "Bash(PROJECT_ENV=development python manage.py check)"
+      "Bash(PROJECT_ENV=development python manage.py check)",
+      "Bash(PROJECT_ENV=development ./venv/Scripts/python.exe manage.py makemigrations bookings calls)",
+      "Bash(PROJECT_ENV=development ./venv/Scripts/python.exe manage.py check)",
+      "Bash(./venv/Scripts/python.exe -m py_compile bookings/models.py bookings/serializers.py bookings/views.py bookings/services/confirm_booking.py calls/models.py calls/views.py calls/serializers.py calls/services/call_room_service.py calls/services/livekit_service.py payments/views.py)",
+      "Bash(PROJECT_ENV=development DB_HOST=127.0.0.1 ./venv/Scripts/python.exe manage.py migrate bookings calls)",
+      "Bash(PROJECT_ENV=development DB_HOST=127.0.0.1 ./venv/Scripts/python.exe manage.py shell -c ' *)",
+      "Bash(grep -vE \"W036|HINT|MariaDB|does not support|WARNINGS|System check|^\\\\s*$\")",
+      "Bash(PROJECT_ENV=development ./venv/Scripts/python.exe -m py_compile calls/views.py calls/urls.py calls/services/livekit_service.py)",
+      "Bash(PROJECT_ENV=development DB_HOST=127.0.0.1 ./venv/Scripts/python.exe manage.py check)",
+      "Bash(grep -vE \"W036|HINT|MariaDB|does not support|DB error|Retrying|Error getting|^\\\\s*$\")",
+      "Bash(./venv/Scripts/python.exe -m py_compile calls/views.py calls/urls.py calls/services/livekit_service.py)",
+      "Bash(grep -vE \"W036|HINT|MariaDB|does not support|DB error|Retrying|Error getting|WARNINGS|System check|^\\\\s*$|objects imported\")",
+      "Bash(git check-ignore *)",
+      "Bash(python manage.py makemigrations payments)",
+      "Bash(DB_HOST=127.0.0.1 python manage.py check)",
+      "Bash(DB_HOST=127.0.0.1 python manage.py migrate payments)",
+      "Bash(DB_HOST=127.0.0.1 python -c ' *)",
+      "Bash(npm run *)",
+      "Bash(DB_HOST=127.0.0.1 PAYMENT_GATEWAY=fake DJANGO_SETTINGS_MODULE=rplatform.settings.production python -c \"import django; django.setup\\(\\)\")"
     ]
   }
 }

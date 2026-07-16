@@ -29,6 +29,21 @@ def _get_room_for_user(room_id, user):
         room = CallRoom.objects.get(id=room_id)
     except CallRoom.DoesNotExist:
         return None
+
+    # Batch (group) room: the expert (advisor) or any user with a CONFIRMED
+    # booking on this slot may join.
+    if room.is_batch:
+        if room.advisor_id == user.id:
+            return room
+        from bookings.models import Booking
+        has_booking = Booking.objects.filter(
+            slot_id=room.slot_id,
+            user_id=user.id,
+            status=Booking.STATUS_CONFIRMED,
+        ).exists()
+        return room if has_booking else None
+
+    # One-to-one room: only the two participants.
     if room.user_id != user.id and room.advisor_id != user.id:
         return None
     return room
@@ -49,9 +64,21 @@ class MyCallRoomsView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        from bookings.models import Booking
+        # One-to-one rooms (user or advisor) + batch rooms the user has a
+        # confirmed booking on.
+        batch_slot_ids = Booking.objects.filter(
+            user=user,
+            is_batch=True,
+            status=Booking.STATUS_CONFIRMED,
+        ).values_list("slot_id", flat=True)
         return (
             CallRoom.objects
-            .filter(Q(user=user) | Q(advisor=user))
+            .filter(
+                Q(user=user)
+                | Q(advisor=user)
+                | Q(slot_id__in=batch_slot_ids)
+            )
             .order_by("-created_at")
         )
 
@@ -149,6 +176,106 @@ class EndCallView(APIView):
         room.save(update_fields=["status", "ended_at", "updated_at"])
 
         return Response({"message": "Call ended."}, status=status.HTTP_200_OK)
+
+
+class MuteParticipantView(APIView):
+    """
+    POST /api/v1/calls/<uuid:room_id>/mute/
+    Host (the expert/advisor) force-mutes a participant's mic in a group call.
+    Body: { "identity": "<user_id>" }  (LiveKit identity == str(user.id))
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id):
+        room = _get_room_for_user(room_id, request.user)
+        if room is None:
+            return Response({"message": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only the host (advisor) of the room may mute others.
+        if room.advisor_id != request.user.id:
+            return Response(
+                {"message": "Only the host can mute participants."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        identity = str(request.data.get("identity") or "").strip()
+        if not identity:
+            return Response({"message": "identity is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if identity == str(request.user.id):
+            return Response({"message": "Use the mic button to mute yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from calls.services.livekit_service import mute_participant_mic
+            muted = mute_participant_mic(room.sfu_room_name, identity)
+        except Exception as e:
+            logger.error("MuteParticipantView [%s]: %s", room_id, e)
+            return Response({"message": "Internal error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"muted": muted}, status=status.HTTP_200_OK)
+
+
+class MuteAllParticipantsView(APIView):
+    """
+    POST /api/v1/calls/<uuid:room_id>/mute-all/
+    Host mutes everyone's mic in a group call (the host stays unmuted).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id):
+        room = _get_room_for_user(room_id, request.user)
+        if room is None:
+            return Response({"message": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if room.advisor_id != request.user.id:
+            return Response(
+                {"message": "Only the host can mute everyone."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            from calls.services.livekit_service import mute_all_participants
+            muted = mute_all_participants(
+                room.sfu_room_name, except_identity=str(request.user.id)
+            )
+        except Exception as e:
+            logger.error("MuteAllParticipantsView [%s]: %s", room_id, e)
+            return Response({"message": "Internal error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"muted_count": muted}, status=status.HTTP_200_OK)
+
+
+class RemoveParticipantView(APIView):
+    """
+    POST /api/v1/calls/<uuid:room_id>/remove/
+    Host removes (disconnects) a participant from a group call.
+    Body: { "identity": "<user_id>" }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, room_id):
+        room = _get_room_for_user(room_id, request.user)
+        if room is None:
+            return Response({"message": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        if room.advisor_id != request.user.id:
+            return Response(
+                {"message": "Only the host can remove participants."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        identity = str(request.data.get("identity") or "").strip()
+        if not identity:
+            return Response({"message": "identity is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if identity == str(request.user.id):
+            return Response({"message": "You cannot remove yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from calls.services.livekit_service import remove_participant
+            removed = remove_participant(room.sfu_room_name, identity)
+        except Exception as e:
+            logger.error("RemoveParticipantView [%s]: %s", room_id, e)
+            return Response({"message": "Internal error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"removed": removed}, status=status.HTTP_200_OK)
 
 
 class CallMessageListView(generics.ListAPIView):

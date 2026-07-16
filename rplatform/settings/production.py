@@ -1,3 +1,5 @@
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import *
 from decouple import config
 
@@ -5,6 +7,13 @@ from decouple import config
 # CORE
 # ==================================================
 DEBUG = False
+
+# Fail fast at boot: the fake gateway must never run in production.
+if PAYMENT_GATEWAY.lower() == "fake":
+    raise ImproperlyConfigured(
+        "PAYMENT_GATEWAY='fake' is not allowed in production. "
+        "Set PAYMENT_GATEWAY=payu."
+    )
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS", default="", cast=str

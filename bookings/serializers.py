@@ -8,6 +8,8 @@ class ExpertSlotSerializer(serializers.ModelSerializer):
     expert_name = serializers.CharField(source="expert.username", read_only=True)
     is_chat_available = serializers.SerializerMethodField()
     is_video_call_available = serializers.SerializerMethodField()
+    is_batch_available = serializers.SerializerMethodField()
+    seats_left = serializers.SerializerMethodField()
 
     class Meta:
         model = ExpertSlot
@@ -21,11 +23,16 @@ class ExpertSlotSerializer(serializers.ModelSerializer):
             "duration_minutes",
             "chat_price",
             "video_call_price",
+            "slot_mode",
+            "capacity",
+            "batch_price",
             "requires_approval",
             "is_recurring",
             "status",
             "is_chat_available",
             "is_video_call_available",
+            "is_batch_available",
+            "seats_left",
             "created_at",
         ]
         read_only_fields = fields
@@ -35,6 +42,12 @@ class ExpertSlotSerializer(serializers.ModelSerializer):
 
     def get_is_video_call_available(self, obj):
         return obj.is_video_call_available()
+
+    def get_is_batch_available(self, obj):
+        return obj.is_batch_available()
+
+    def get_seats_left(self, obj):
+        return obj.batch_seats_left()
 
 
 class ExpertSlotCreateSerializer(serializers.ModelSerializer):
@@ -46,6 +59,9 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
             "duration_minutes",
             "chat_price",
             "video_call_price",
+            "slot_mode",
+            "capacity",
+            "batch_price",
             "requires_approval",
         ]
 
@@ -60,12 +76,36 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"end_datetime": "End time must be after start time."}
             )
-        chat_price = attrs.get("chat_price", 0)
-        video_call_price = attrs.get("video_call_price", 0)
-        if chat_price <= 0 and video_call_price <= 0:
-            raise serializers.ValidationError(
-                "At least one of chat_price or video_call_price must be greater than 0."
-            )
+
+        slot_mode = attrs.get("slot_mode", ExpertSlot.MODE_ONE_TO_ONE)
+
+        if slot_mode == ExpertSlot.MODE_BATCH:
+            # Batch = group video call only, per-user price, no approval step.
+            capacity = attrs.get("capacity", 0)
+            batch_price = attrs.get("batch_price", 0)
+            if not (2 <= capacity <= ExpertSlot.MAX_BATCH_CAPACITY):
+                raise serializers.ValidationError(
+                    {"capacity": f"Capacity must be between 2 and {ExpertSlot.MAX_BATCH_CAPACITY}."}
+                )
+            if batch_price <= 0:
+                raise serializers.ValidationError(
+                    {"batch_price": "Batch price (per user) must be greater than 0."}
+                )
+            # Batch slots don't use chat/video_call price and skip approval.
+            attrs["chat_price"] = 0
+            attrs["video_call_price"] = 0
+            attrs["requires_approval"] = False
+        else:
+            # One-to-one: existing rules.
+            attrs["capacity"] = 1
+            attrs["batch_price"] = 0
+            chat_price = attrs.get("chat_price", 0)
+            video_call_price = attrs.get("video_call_price", 0)
+            if chat_price <= 0 and video_call_price <= 0:
+                raise serializers.ValidationError(
+                    "At least one of chat_price or video_call_price must be greater than 0."
+                )
+
         expert = self.context["request"].user
         if ExpertSlot.objects.filter(
             expert=expert,
@@ -104,12 +144,13 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"end_datetime": "End time must be after start time."}
             )
-        chat_price = attrs.get("chat_price", instance.chat_price)
-        video_call_price = attrs.get("video_call_price", instance.video_call_price)
-        if chat_price <= 0 and video_call_price <= 0:
-            raise serializers.ValidationError(
-                "At least one of chat_price or video_call_price must be greater than 0."
-            )
+        if not instance.is_batch:
+            chat_price = attrs.get("chat_price", instance.chat_price)
+            video_call_price = attrs.get("video_call_price", instance.video_call_price)
+            if chat_price <= 0 and video_call_price <= 0:
+                raise serializers.ValidationError(
+                    "At least one of chat_price or video_call_price must be greater than 0."
+                )
         return attrs
 
     def update(self, instance, validated_data):
@@ -158,6 +199,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "end_datetime",
             "duration_minutes",
             "price",
+            "is_batch",
             "platform_fee_percent",
             "platform_fee_amount",
             "expert_earning_amount",
@@ -185,6 +227,8 @@ class BookingSerializer(serializers.ModelSerializer):
 
     def get_call_room_id(self, obj):
         try:
+            if obj.is_batch:
+                return str(obj.slot.call_room.id)
             return str(obj.call_room.id)
         except Exception:
             return None
@@ -205,33 +249,33 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         except ExpertSlot.DoesNotExist:
             raise serializers.ValidationError("Slot not found.")
 
-    @transaction.atomic
     def validate(self, attrs):
         user = self.context["request"].user
         slot_id = attrs.get("slot_id")
         session_type = attrs.get("session_type")
         try:
-            slot = ExpertSlot.objects.select_for_update().get(
-                uuid=slot_id, status="ACTIVE"
-            )
+            slot = ExpertSlot.objects.get(uuid=slot_id, status="ACTIVE")
         except ExpertSlot.DoesNotExist:
             raise serializers.ValidationError("Slot not available.")
         if slot.expert == user:
             raise serializers.ValidationError("You cannot book your own slot.")
         if slot.start_datetime <= timezone.now():
             raise serializers.ValidationError("Cannot book past or ongoing slots.")
-        if session_type == Booking.SESSION_TYPE_CHAT and slot.chat_price <= 0:
-            raise serializers.ValidationError(
-                "Chat session is not available for this slot."
-            )
-        if session_type == Booking.SESSION_TYPE_VIDEO_CALL and slot.video_call_price <= 0:
-            raise serializers.ValidationError(
-                "Video call session is not available for this slot."
-            )
-        if Booking.objects.filter(
-            slot=slot, status__in=Booking.ACTIVE_STATUSES
-        ).exists():
-            raise serializers.ValidationError("Slot is already booked.")
+
+        if slot.is_batch:
+            # Batch is group video call only; force the session type.
+            attrs["session_type"] = Booking.SESSION_TYPE_VIDEO_CALL
+        else:
+            if session_type == Booking.SESSION_TYPE_CHAT and slot.chat_price <= 0:
+                raise serializers.ValidationError(
+                    "Chat session is not available for this slot."
+                )
+            if session_type == Booking.SESSION_TYPE_VIDEO_CALL and slot.video_call_price <= 0:
+                raise serializers.ValidationError(
+                    "Video call session is not available for this slot."
+                )
+
+        # Friendly early check (authoritative re-check happens in create()).
         if Booking.objects.filter(
             user=user, slot=slot, status__in=Booking.ACTIVE_STATUSES
         ).exists():
@@ -241,15 +285,41 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         attrs["slot"] = slot
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         user = self.context["request"].user
-        slot = validated_data["slot"]
         session_type = validated_data["session_type"]
-        price = (
-            slot.chat_price
-            if session_type == Booking.SESSION_TYPE_CHAT
-            else slot.video_call_price
+
+        # Lock the slot row so the capacity/availability check and the insert
+        # happen atomically. For one-to-one the DB unique constraint is the
+        # ultimate guard; for batch this lock is the guard (no such constraint).
+        slot = ExpertSlot.objects.select_for_update().get(
+            uuid=validated_data["slot"].uuid
         )
+
+        # Re-check duplicate under lock.
+        if Booking.objects.filter(
+            user=user, slot=slot, status__in=Booking.ACTIVE_STATUSES
+        ).exists():
+            raise serializers.ValidationError(
+                "You already have a booking for this slot."
+            )
+
+        active_count = slot.active_booking_count()
+
+        if slot.is_batch:
+            if active_count >= slot.capacity:
+                raise serializers.ValidationError("This batch session is full.")
+            price = slot.batch_price
+        else:
+            if active_count >= 1:
+                raise serializers.ValidationError("Slot is already booked.")
+            price = (
+                slot.chat_price
+                if session_type == Booking.SESSION_TYPE_CHAT
+                else slot.video_call_price
+            )
+
         booking_status = (
             Booking.STATUS_PENDING
             if slot.requires_approval
@@ -264,6 +334,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             duration_minutes=slot.duration_minutes,
             price=price,
             session_type=session_type,
+            is_batch=slot.is_batch,
             requires_expert_approval=slot.requires_approval,
             status=booking_status,
         )

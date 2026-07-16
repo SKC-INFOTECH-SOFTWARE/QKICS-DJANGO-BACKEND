@@ -5,7 +5,10 @@ from bookings.models import Booking
 from payments.models import Payment
 from chat.services.create_room import get_or_create_chat_room
 from notifications.services.events import notify_booking_confirmed
-from calls.services.call_room_service import create_call_room_for_booking
+from calls.services.call_room_service import (
+    create_call_room_for_booking,
+    get_or_create_batch_call_room,
+)
 
 
 def confirm_booking_after_payment(*, payment: Payment):
@@ -30,7 +33,10 @@ def confirm_booking_after_payment(*, payment: Payment):
         if not booking.expert_approved_at:
             booking.expert_approved_at = timezone.now()
 
-        if booking.session_type == Booking.SESSION_TYPE_CHAT:
+        if booking.is_batch:
+            # Group video call: one shared CallRoom per slot (idempotent).
+            get_or_create_batch_call_room(slot=booking.slot)
+        elif booking.session_type == Booking.SESSION_TYPE_CHAT:
             chat_room = get_or_create_chat_room(
                 user=booking.user,
                 advisor=booking.expert,

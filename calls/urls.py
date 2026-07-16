@@ -3,7 +3,8 @@ from .views import (
     MyCallRoomsView, MyCallNotesView,
     CallRoomDetailView, EndCallView,
     CallMessageListView, CallFileUploadView,
-    CallNoteView,
+    CallNoteView, MuteParticipantView,
+    MuteAllParticipantsView, RemoveParticipantView,
     LiveKitWebhookView,
     AdminCallRecordingListView, AdminCallRecordingSignedUrlView,
 )
@@ -18,6 +19,9 @@ urlpatterns = [
     path("<uuid:room_id>/messages/",  CallMessageListView.as_view(), name="call-messages"),
     path("<uuid:room_id>/upload/",    CallFileUploadView.as_view(),  name="call-file-upload"),
     path("<uuid:room_id>/notes/",     CallNoteView.as_view(),        name="call-notes"),
+    path("<uuid:room_id>/mute/",      MuteParticipantView.as_view(),     name="call-mute-participant"),
+    path("<uuid:room_id>/mute-all/",  MuteAllParticipantsView.as_view(), name="call-mute-all"),
+    path("<uuid:room_id>/remove/",    RemoveParticipantView.as_view(),   name="call-remove-participant"),
 
     # ── LiveKit webhook ───────────────────────────────────
     path("livekit/webhook/", LiveKitWebhookView.as_view(), name="livekit-webhook"),
