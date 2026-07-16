@@ -52,6 +52,10 @@ class CallRoom(models.Model):
 
     auto_cut_scheduled = models.BooleanField(default=False)
 
+    # Group calls: user IDs the host has blocked from the in-call text chat
+    # (spam control). Stored as a list of ints.
+    chat_blocked_user_ids = models.JSONField(default=list, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -44,7 +44,11 @@
       "Bash(DB_HOST=127.0.0.1 python manage.py migrate payments)",
       "Bash(DB_HOST=127.0.0.1 python -c ' *)",
       "Bash(npm run *)",
-      "Bash(DB_HOST=127.0.0.1 PAYMENT_GATEWAY=fake DJANGO_SETTINGS_MODULE=rplatform.settings.production python -c \"import django; django.setup\\(\\)\")"
+      "Bash(DB_HOST=127.0.0.1 PAYMENT_GATEWAY=fake DJANGO_SETTINGS_MODULE=rplatform.settings.production python -c \"import django; django.setup\\(\\)\")",
+      "Bash(node -e \"console.log\\('livekit-client:', require\\('./node_modules/livekit-client/package.json'\\).version\\)\")",
+      "Bash(python manage.py makemigrations calls)",
+      "Bash(DB_HOST=127.0.0.1 python manage.py migrate calls)",
+      "Bash(python -c ' *)"
     ]
   }
 }
