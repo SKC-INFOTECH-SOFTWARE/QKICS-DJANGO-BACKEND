@@ -25,8 +25,11 @@ from .views.companies import (
     AdminCompanyPostDeleteView,
 )
 from .views.company_settings import CompanyPostSettingsView
+from .views.dashboard import AdminDashboardStatsView
 
 urlpatterns = [
+    # Admin dashboard metrics
+    path("dashboard/stats/", AdminDashboardStatsView.as_view(), name="admin-dashboard-stats"),
     # Admin user management
     path("users/", AdminUserListView.as_view(), name="admin-users"),
     # Admin expert application management
