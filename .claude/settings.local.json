@@ -48,7 +48,8 @@
       "Bash(node -e \"console.log\\('livekit-client:', require\\('./node_modules/livekit-client/package.json'\\).version\\)\")",
       "Bash(python manage.py makemigrations calls)",
       "Bash(DB_HOST=127.0.0.1 python manage.py migrate calls)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(PROJECT_ENV=development DB_HOST=127.0.0.1 python manage.py check)"
     ]
   }
 }

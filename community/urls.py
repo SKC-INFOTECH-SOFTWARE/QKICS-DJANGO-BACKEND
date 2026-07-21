@@ -26,6 +26,9 @@ from .views import (
     
     # KNOWLEDGE HUB
     KnowledgeHubPostView,
+
+    # VIDEO FEED
+    PostVideoFeedView,
 )
 
 urlpatterns = [
@@ -40,6 +43,7 @@ urlpatterns = [
     # POSTS
     # -----------------------------
     path("posts/", PostListCreateView.as_view(), name="post-list-create"),
+    path("posts/videos/", PostVideoFeedView.as_view(), name="post-video-feed"),
     path("posts/user/<str:username>/", PostByUserView.as_view(), name="post-by-user"),
     path("posts/<int:pk>/", PostDetailView.as_view(), name="post-detail"),
 

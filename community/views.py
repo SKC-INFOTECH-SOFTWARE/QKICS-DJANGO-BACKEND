@@ -11,7 +11,7 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import datetime, timedelta
 
-from .models import Post, Comment, Like, Tag
+from .models import Post, Comment, Like, Tag, PostMedia
 from .serializers import (
     PostSerializer,
     PostCreateSerializer,
@@ -471,6 +471,32 @@ class SearchPostsView(ListAPIView):
                 | Q(full_content__icontains=query)
                 | Q(tags__name__icontains=query)
             )
+            .distinct()
+            .order_by("-created_at")
+        )
+
+
+# =====================================================
+# VIDEO FEED (FB Watch / Reels style)
+# =====================================================
+
+
+class PostVideoFeedView(ListAPIView):
+    """Only posts that contain at least one video, newest first.
+
+    Powers the immersive scroll-through video feed. Uses the same cursor
+    pagination + serializer as the main feed so the frontend can reuse its
+    post/like handling.
+    """
+
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    serializer_class = PostSerializer
+    pagination_class = PostCursorPagination
+
+    def get_queryset(self):
+        return (
+            get_optimized_post_queryset()
+            .filter(media__media_type=PostMedia.VIDEO)
             .distinct()
             .order_by("-created_at")
         )
