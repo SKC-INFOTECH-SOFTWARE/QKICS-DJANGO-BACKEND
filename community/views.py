@@ -494,12 +494,18 @@ class PostVideoFeedView(ListAPIView):
     pagination_class = PostCursorPagination
 
     def get_queryset(self):
-        return (
+        qs = (
             get_optimized_post_queryset()
             .filter(media__media_type=PostMedia.VIDEO)
             .distinct()
             .order_by("-created_at")
         )
+        # Opened from a profile → scope the feed to that user's videos only
+        # (Instagram/Facebook-style: you scroll through just their videos).
+        username = self.request.query_params.get("user")
+        if username:
+            qs = qs.filter(author__username=username)
+        return qs
 
 
 # =====================================================

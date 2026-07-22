@@ -49,7 +49,8 @@
       "Bash(python manage.py makemigrations calls)",
       "Bash(DB_HOST=127.0.0.1 python manage.py migrate calls)",
       "Bash(python -c ' *)",
-      "Bash(PROJECT_ENV=development DB_HOST=127.0.0.1 python manage.py check)"
+      "Bash(PROJECT_ENV=development DB_HOST=127.0.0.1 python manage.py check)",
+      "Bash(python manage.py check)"
     ]
   }
 }
