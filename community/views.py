@@ -454,6 +454,31 @@ class LikeToggleView(APIView):
 # =====================================================
 
 
+# Whether the community_post FULLTEXT index exists in this DB. Evaluated once
+# per process (cheap information_schema lookup); a deploy that adds the index
+# restarts the process, re-evaluating it. Guards MATCH ... AGAINST so search
+# degrades to a LIKE scan instead of 500-ing when the index isn't present.
+_FULLTEXT_AVAILABLE = None
+
+
+def _post_fulltext_available():
+    global _FULLTEXT_AVAILABLE
+    if _FULLTEXT_AVAILABLE is None:
+        from django.db import connection
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                    "WHERE table_schema = DATABASE() "
+                    "AND table_name = 'community_post' "
+                    "AND index_name = 'post_fulltext_idx'"
+                )
+                _FULLTEXT_AVAILABLE = cursor.fetchone()[0] > 0
+        except Exception:
+            _FULLTEXT_AVAILABLE = False
+    return _FULLTEXT_AVAILABLE
+
+
 class SearchPostsView(ListAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = PostSearchSerializer
@@ -467,18 +492,19 @@ class SearchPostsView(ListAPIView):
 
         base = get_optimized_post_queryset()
 
-        # Build a FULLTEXT BOOLEAN-mode expression: each word must be present,
-        # with prefix matching (`word*`). This hits the post_fulltext_idx index
-        # (title, content, full_content) instead of scanning with LIKE '%q%'.
+        # Tags aren't covered by the fulltext index, so always OR a cheap match
+        # on them (the tag table is tiny).
+        tag_match = Q(tags__name__icontains=query)
+
+        # Prefer the FULLTEXT index (fast) when it actually exists in the DB;
+        # otherwise fall back to a reliable LIKE scan. This keeps search working
+        # even if the fulltext migration hasn't been applied on this environment.
         tokens = re.findall(r"\w+", query)
         boolean_query = " ".join(f"+{t}*" for t in tokens)
 
-        # Tags aren't covered by the fulltext index, so keep a cheap OR on them
-        # (the tag table is tiny).
-        tag_match = Q(tags__name__icontains=query)
-
-        if boolean_query:
-            fulltext_match = Q(
+        if boolean_query and _post_fulltext_available():
+            # Index-backed MATCH ... AGAINST (BOOLEAN MODE, prefix match).
+            text_match = Q(
                 pk__in=RawSQL(
                     "SELECT id FROM community_post "
                     "WHERE MATCH(title, content, full_content) "
@@ -486,12 +512,15 @@ class SearchPostsView(ListAPIView):
                     [boolean_query],
                 )
             )
-            condition = fulltext_match | tag_match
         else:
-            # No indexable tokens (e.g. only stopwords/symbols) → tags only.
-            condition = tag_match
+            # Fallback: no fulltext index (or no indexable tokens) → LIKE scan.
+            text_match = (
+                Q(title__icontains=query)
+                | Q(content__icontains=query)
+                | Q(full_content__icontains=query)
+            )
 
-        return base.filter(condition).distinct().order_by("-created_at")
+        return base.filter(text_match | tag_match).distinct().order_by("-created_at")
 
 
 # =====================================================

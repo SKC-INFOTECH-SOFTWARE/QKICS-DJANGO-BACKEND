@@ -50,7 +50,8 @@
       "Bash(DB_HOST=127.0.0.1 python manage.py migrate calls)",
       "Bash(python -c ' *)",
       "Bash(PROJECT_ENV=development DB_HOST=127.0.0.1 python manage.py check)",
-      "Bash(python manage.py check)"
+      "Bash(python manage.py check)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('community/views.py'\\).read\\(\\)\\); print\\('syntax OK'\\)\")"
     ]
   }
 }
