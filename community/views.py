@@ -7,7 +7,9 @@ from rest_framework.permissions import (
 )
 from rest_framework.generics import ListAPIView
 from django.shortcuts import get_object_or_404
+import re
 from django.db.models import Q, Count
+from django.db.models.expressions import RawSQL
 from django.utils import timezone
 from datetime import datetime, timedelta
 
@@ -463,17 +465,33 @@ class SearchPostsView(ListAPIView):
         if not query:
             return Post.objects.none()
 
-        return (
-            get_optimized_post_queryset()
-            .filter(
-                Q(title__icontains=query)
-                | Q(preview_content__icontains=query)
-                | Q(full_content__icontains=query)
-                | Q(tags__name__icontains=query)
+        base = get_optimized_post_queryset()
+
+        # Build a FULLTEXT BOOLEAN-mode expression: each word must be present,
+        # with prefix matching (`word*`). This hits the post_fulltext_idx index
+        # (title, content, full_content) instead of scanning with LIKE '%q%'.
+        tokens = re.findall(r"\w+", query)
+        boolean_query = " ".join(f"+{t}*" for t in tokens)
+
+        # Tags aren't covered by the fulltext index, so keep a cheap OR on them
+        # (the tag table is tiny).
+        tag_match = Q(tags__name__icontains=query)
+
+        if boolean_query:
+            fulltext_match = Q(
+                pk__in=RawSQL(
+                    "SELECT id FROM community_post "
+                    "WHERE MATCH(title, content, full_content) "
+                    "AGAINST (%s IN BOOLEAN MODE)",
+                    [boolean_query],
+                )
             )
-            .distinct()
-            .order_by("-created_at")
-        )
+            condition = fulltext_match | tag_match
+        else:
+            # No indexable tokens (e.g. only stopwords/symbols) → tags only.
+            condition = tag_match
+
+        return base.filter(condition).distinct().order_by("-created_at")
 
 
 # =====================================================
