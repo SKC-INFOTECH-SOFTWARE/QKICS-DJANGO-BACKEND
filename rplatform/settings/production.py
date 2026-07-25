@@ -85,9 +85,14 @@ LOGGING = {
 # ==================================================
 # REDIS CACHE
 # ==================================================
+# db 1, NOT db 0: CHANNEL_LAYERS (channels_redis) owns db 0, so a cache.clear()
+# on a shared db would flush live channel-layer state and drop in-flight
+# WebSocket messages.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": f"redis://{config('REDIS_HOST', default='127.0.0.1')}:{config('REDIS_PORT', default=6380)}/0",
+        "LOCATION": f"redis://{config('REDIS_HOST', default='127.0.0.1')}:{config('REDIS_PORT', default=6380)}/1",
+        "KEY_PREFIX": "qkics",
+        "TIMEOUT": 300,
     }
 }

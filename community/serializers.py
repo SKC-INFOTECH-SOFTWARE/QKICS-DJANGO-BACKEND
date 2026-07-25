@@ -2,11 +2,45 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from .models import Post, Comment, Tag, PostMedia
-from subscriptions.services.access import is_user_premium  #  (subscription)
+from subscriptions.services.access import is_user_premium_request  #  (subscription)
 from django.db.models import Max
 import mimetypes
 
 User = get_user_model()
+
+
+# =====================================================
+# ANNOTATION-AWARE COUNTS / LIKE STATE
+# =====================================================
+
+
+class AnnotatedLikesMixin:
+    """
+    Read like count + like state from the queryset annotations when they exist.
+
+    get_optimized_post_queryset() / get_optimized_comment_queryset() resolve both
+    in SQL, which is what keeps a feed page from running one COUNT and one EXISTS
+    per row. The fallbacks keep single-object paths that skip those helpers working
+    exactly as before.
+    """
+
+    likes_relation = "post_likes"
+
+    def get_total_likes(self, obj):
+        value = getattr(obj, "total_likes_count", None)
+        return value if value is not None else obj.total_likes
+
+    def get_is_liked(self, obj):
+        value = getattr(obj, "is_liked_ann", None)
+        if value is not None:
+            return bool(value)
+
+        request = self.context.get("request")
+        user = request.user if request else None
+        if not user or not user.is_authenticated:
+            return False
+
+        return getattr(obj, self.likes_relation).filter(user=user).exists()
 
 
 # =====================================================
@@ -53,9 +87,11 @@ class TagSerializer(serializers.ModelSerializer):
 # =====================================================
 
 
-class ReplySerializer(serializers.ModelSerializer):
+class ReplySerializer(AnnotatedLikesMixin, serializers.ModelSerializer):
+    likes_relation = "comment_likes"
+
     author = AuthorSerializer(read_only=True)
-    total_likes = serializers.IntegerField(read_only=True)
+    total_likes = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
 
     #  (subscription-based rendering)
@@ -87,7 +123,7 @@ class ReplySerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             if obj.author_id == user.id:
                 return obj.full_content
-            if is_user_premium(user):
+            if is_user_premium_request(request):
                 return obj.full_content
 
         return obj.preview_content
@@ -99,7 +135,7 @@ class ReplySerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             if obj.author_id == user.id:
                 return False
-            if is_user_premium(user):
+            if is_user_premium_request(request):
                 return False
 
         return bool(obj.full_content)
@@ -110,10 +146,6 @@ class ReplySerializer(serializers.ModelSerializer):
 
     def get_full_length(self, obj):
         return len(obj.full_content or "")
-    
-    def get_is_liked(self, obj):
-        user = self.context["request"].user
-        return user.is_authenticated and obj.comment_likes.filter(user=user).exists()
 
 
 # =====================================================
@@ -122,9 +154,11 @@ class ReplySerializer(serializers.ModelSerializer):
 # =====================================================
 
 
-class CommentSerializer(serializers.ModelSerializer):
+class CommentSerializer(AnnotatedLikesMixin, serializers.ModelSerializer):
+    likes_relation = "comment_likes"
+
     author = AuthorSerializer(read_only=True)
-    total_likes = serializers.IntegerField(read_only=True)
+    total_likes = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
     total_replies = serializers.IntegerField(
         source="total_replies_count", read_only=True
@@ -159,7 +193,7 @@ class CommentSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             if obj.author_id == user.id:
                 return obj.full_content
-            if is_user_premium(user):
+            if is_user_premium_request(request):
                 return obj.full_content
 
         return obj.preview_content
@@ -171,7 +205,7 @@ class CommentSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             if obj.author_id == user.id:
                 return False
-            if is_user_premium(user):
+            if is_user_premium_request(request):
                 return False
 
         return bool(obj.full_content)
@@ -183,10 +217,6 @@ class CommentSerializer(serializers.ModelSerializer):
 
     def get_full_length(self, obj):
         return len(obj.full_content or "")
-        
-    def get_is_liked(self, obj):
-        user = self.context["request"].user
-        return user.is_authenticated and obj.comment_likes.filter(user=user).exists()
 
 
 # =====================================================
@@ -206,11 +236,11 @@ class PostMediaSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "media_type", "created_at"]
 
 
-class PostSerializer(serializers.ModelSerializer):
+class PostSerializer(AnnotatedLikesMixin, serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     media = PostMediaSerializer(many=True, read_only=True)
-    total_likes = serializers.IntegerField(read_only=True)
+    total_likes = serializers.SerializerMethodField()
     total_comments = serializers.IntegerField(
         source="total_comments_count", read_only=True
     )
@@ -249,17 +279,12 @@ class PostSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             if obj.author_id == user.id:
                 return obj.full_content
-            if is_user_premium(user):
+            if is_user_premium_request(request):
                 return obj.full_content
 
         preview = obj.preview_content
 
         return preview
-
-    # UNCHANGED
-    def get_is_liked(self, obj):
-        user = self.context["request"].user
-        return user.is_authenticated and obj.post_likes.filter(user=user).exists()
 
     def get_is_locked(self, obj):
         request = self.context.get("request")
@@ -268,7 +293,7 @@ class PostSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             if obj.author_id == user.id:
                 return False
-            if is_user_premium(user):
+            if is_user_premium_request(request):
                 return False
 
         return bool(obj.full_content)
@@ -286,11 +311,11 @@ class PostSerializer(serializers.ModelSerializer):
 # =====================================================
 
 
-class PostSearchSerializer(serializers.ModelSerializer):
+class PostSearchSerializer(AnnotatedLikesMixin, serializers.ModelSerializer):
     author = AuthorSerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     media = PostMediaSerializer(many=True, read_only=True)
-    total_likes = serializers.IntegerField(read_only=True)
+    total_likes = serializers.SerializerMethodField()
     total_comments = serializers.IntegerField(
         source="total_comments_count", read_only=True
     )
@@ -321,14 +346,10 @@ class PostSearchSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated and obj.author_id == user.id:
             return obj.full_content or obj.content
 
-        if user and user.is_authenticated and is_user_premium(user):
+        if user and user.is_authenticated and is_user_premium_request(request):
             return obj.full_content or obj.content
 
         return obj.preview_content or obj.content
-
-    def get_is_liked(self, obj):
-        user = self.context["request"].user
-        return user.is_authenticated and obj.post_likes.filter(user=user).exists()
 
 
 # =====================================================

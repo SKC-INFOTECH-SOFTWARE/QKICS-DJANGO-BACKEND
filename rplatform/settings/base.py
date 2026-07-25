@@ -211,6 +211,23 @@ CHANNEL_LAYERS = {
 }
 
 # ==================================================
+# CACHE
+# ==================================================
+# Dev default: in-process, so cache-using code behaves the same locally without
+# needing Redis. Production overrides this with the Redis backend.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "qkics-dev",
+        "KEY_PREFIX": "qkics",
+        "TIMEOUT": 300,
+    }
+}
+
+# Global off-switch — lets a bad cache be turned off without a redeploy.
+CACHE_ENABLED = config("CACHE_ENABLED", default=True, cast=bool)
+
+# ==================================================
 # CHANNELS (Redis)
 # ==================================================
 NOTIFICATION_SERVICE_URL = config("NOTIFICATION_SERVICE_URL", default="http://192.168.0.159:3000")

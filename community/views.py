@@ -8,7 +8,8 @@ from rest_framework.permissions import (
 from rest_framework.generics import ListAPIView
 from django.shortcuts import get_object_or_404
 import re
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Exists, OuterRef, Subquery, IntegerField
+from django.db.models.functions import Coalesce
 from django.db.models.expressions import RawSQL
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -45,12 +46,65 @@ User = get_user_model()
 # =====================================================
 
 
-def get_optimized_post_queryset():
-    return (
-        Post.objects.select_related("author")
-        .prefetch_related("tags", "post_likes", "media")
-        .annotate(total_comments_count=Count("comments"))
+def _related_count(model, fk_field):
+    """
+    COUNT of a reverse relation, as a correlated subquery.
+
+    Annotating two reverse relations with Count() in one query multiplies the
+    joined rows (comments x likes), which both inflates the counts and explodes
+    the row set on busy posts. One subquery per relation keeps each count
+    independent and the join out of the main query.
+    """
+    return Coalesce(
+        Subquery(
+            model.objects.filter(**{fk_field: OuterRef("pk")})
+            .order_by()
+            .values(fk_field)
+            .annotate(c=Count("id"))
+            .values("c")[:1],
+            output_field=IntegerField(),
+        ),
+        0,
     )
+
+
+def get_optimized_post_queryset(user=None):
+    """
+    Base post queryset with counts + the caller's like state resolved in SQL.
+
+    Pass `user` on any path that serializes posts: it annotates `is_liked_ann`,
+    which is what keeps PostSerializer from running one EXISTS query per post.
+    """
+    qs = (
+        Post.objects.select_related("author")
+        .prefetch_related("tags", "media")
+        .annotate(
+            total_comments_count=_related_count(Comment, "post"),
+            total_likes_count=_related_count(Like, "post"),
+        )
+    )
+
+    if user is not None and getattr(user, "is_authenticated", False):
+        qs = qs.annotate(
+            is_liked_ann=Exists(Like.objects.filter(post=OuterRef("pk"), user=user))
+        )
+
+    return qs
+
+
+def get_optimized_comment_queryset(user=None):
+    """Same idea as get_optimized_post_queryset(), for comments and replies."""
+    qs = Comment.objects.select_related("author").annotate(
+        total_replies_count=_related_count(Comment, "parent"),
+        total_likes_count=_related_count(Like, "comment"),
+    )
+
+    if user is not None and getattr(user, "is_authenticated", False):
+        qs = qs.annotate(
+            is_liked_ann=Exists(Like.objects.filter(comment=OuterRef("pk"), user=user))
+        )
+
+    return qs
 
 
 # =====================================================
@@ -115,7 +169,7 @@ class PostListCreateView(ListAPIView):
     parser_classes = [MultiPartParser, FormParser]
     
     def get_queryset(self):
-        return get_optimized_post_queryset().order_by("-created_at")
+        return get_optimized_post_queryset(self.request.user).order_by("-created_at")
 
     def post(self, request):
         now = timezone.localtime()
@@ -143,7 +197,7 @@ class PostListCreateView(ListAPIView):
         serializer.is_valid(raise_exception=True)
         post = serializer.save(author=request.user)
 
-        post = get_optimized_post_queryset().get(id=post.id)
+        post = get_optimized_post_queryset(request.user).get(id=post.id)
 
         return Response(
             PostSerializer(post, context={"request": request}).data,
@@ -163,7 +217,11 @@ class PostByUserView(ListAPIView):
 
     def get_queryset(self):
         user = get_object_or_404(User, username=self.kwargs["username"])
-        return get_optimized_post_queryset().filter(author=user).order_by("-created_at")
+        return (
+            get_optimized_post_queryset(self.request.user)
+            .filter(author=user)
+            .order_by("-created_at")
+        )
 
 
 # =====================================================
@@ -178,7 +236,11 @@ class PostByTagView(ListAPIView):
 
     def get_queryset(self):
         tag = get_object_or_404(Tag, slug=self.kwargs["slug"])
-        return get_optimized_post_queryset().filter(tags=tag).order_by("-created_at")
+        return (
+            get_optimized_post_queryset(self.request.user)
+            .filter(tags=tag)
+            .order_by("-created_at")
+        )
 
 
 # =====================================================
@@ -190,7 +252,7 @@ class PostDetailView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_object(self, pk):
-        return get_object_or_404(get_optimized_post_queryset(), pk=pk)
+        return get_object_or_404(get_optimized_post_queryset(self.request.user), pk=pk)
 
     def get(self, request, pk):
         post = self.get_object(pk)
@@ -205,7 +267,7 @@ class PostDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        post = get_optimized_post_queryset().get(id=pk)
+        post = get_optimized_post_queryset(request.user).get(id=pk)
 
         return Response(PostSerializer(post, context={"request": request}).data)
 
@@ -231,10 +293,8 @@ class CommentListCreateView(ListAPIView):
     def get_queryset(self):
         post = get_object_or_404(Post, id=self.kwargs["post_id"])
         return (
-            Comment.objects.filter(post=post, parent__isnull=True)
-            .select_related("author")
-            .prefetch_related("comment_likes")
-            .annotate(total_replies_count=Count("replies"))
+            get_optimized_comment_queryset(self.request.user)
+            .filter(post=post, parent__isnull=True)
             .order_by("-created_at")
         )
 
@@ -263,12 +323,7 @@ class CommentListCreateView(ListAPIView):
         comment = serializer.save(author=request.user, post=post)
         notify_post_commented(comment)
 
-        comment = (
-            Comment.objects.select_related("author")
-            .prefetch_related("comment_likes")
-            .annotate(total_replies_count=Count("replies"))
-            .get(id=comment.id)
-        )
+        comment = get_optimized_comment_queryset(request.user).get(id=comment.id)
 
         return Response(
             CommentSerializer(comment, context={"request": request}).data,
@@ -323,8 +378,8 @@ class ReplyListCreateView(ListAPIView):
     def get_queryset(self):
         parent = get_object_or_404(Comment, id=self.kwargs["comment_id"])
         return (
-            parent.replies.select_related("author")
-            .prefetch_related("comment_likes")
+            get_optimized_comment_queryset(self.request.user)
+            .filter(parent=parent)
             .order_by("created_at")
         )
 
@@ -438,8 +493,13 @@ class LikeToggleView(APIView):
             if post_id:
                 notify_post_liked(target, liked_by=user)
 
+        # Re-fetch through the annotated queryset so the response carries fresh
+        # counts and like state (the comment branch needs it too — CommentSerializer
+        # reads total_replies_count, which only exists as an annotation).
         if post_id:
-            target = get_optimized_post_queryset().get(id=post_id)
+            target = get_optimized_post_queryset(user).get(id=post_id)
+        else:
+            target = get_optimized_comment_queryset(user).get(id=comment_id)
 
         return Response(
             {
@@ -490,7 +550,7 @@ class SearchPostsView(ListAPIView):
         if not query:
             return Post.objects.none()
 
-        base = get_optimized_post_queryset()
+        base = get_optimized_post_queryset(self.request.user)
 
         # Tags aren't covered by the fulltext index, so always OR a cheap match
         # on them (the tag table is tiny).
@@ -542,7 +602,7 @@ class PostVideoFeedView(ListAPIView):
 
     def get_queryset(self):
         qs = (
-            get_optimized_post_queryset()
+            get_optimized_post_queryset(self.request.user)
             .filter(media__media_type=PostMedia.VIDEO)
             .distinct()
             .order_by("-created_at")
@@ -567,7 +627,7 @@ class KnowledgeHubPostView(ListAPIView):
 
     def get_queryset(self):
         return (
-            get_optimized_post_queryset()
+            get_optimized_post_queryset(self.request.user)
             .filter(knowledge_hub=True)
             .order_by("-created_at")
         )

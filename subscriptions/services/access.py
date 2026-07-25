@@ -30,6 +30,32 @@ def is_user_premium(user):
     return get_active_subscription(user) is not None
 
 
+def is_user_premium_request(request):
+    """
+    Per-request memoised is_user_premium().
+
+    Serializers ask this once per rendered object (twice, for content + is_locked),
+    so a 10-post feed used to run ~20 identical UserSubscription queries. The answer
+    cannot change within a single request, so resolve it once and hang it on the
+    request.
+    """
+    user = getattr(request, "user", None) if request else None
+
+    if not user or not user.is_authenticated:
+        return False
+
+    cached = getattr(request, "_premium_flag", None)
+    if cached is not None and cached[0] == user.id:
+        return cached[1]
+
+    value = is_user_premium(user)
+    try:
+        request._premium_flag = (user.id, value)
+    except AttributeError:
+        pass  # not a real request object — just skip the memo
+    return value
+
+
 def remaining_premium_docs(user):
     """
     Returns remaining premium document downloads for this month.

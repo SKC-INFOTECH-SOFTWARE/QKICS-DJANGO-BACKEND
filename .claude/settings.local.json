@@ -51,7 +51,9 @@
       "Bash(python -c ' *)",
       "Bash(PROJECT_ENV=development DB_HOST=127.0.0.1 python manage.py check)",
       "Bash(python manage.py check)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('community/views.py'\\).read\\(\\)\\); print\\('syntax OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('community/views.py'\\).read\\(\\)\\); print\\('syntax OK'\\)\")",
+      "PowerShell(python manage.py check 2>&1 | Select-Object -Last 20)",
+      "Bash(DJANGO_DEBUG=1 python \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/verify_phase0.py\")"
     ]
   }
 }
