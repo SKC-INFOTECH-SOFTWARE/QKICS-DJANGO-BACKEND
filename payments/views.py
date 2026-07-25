@@ -18,6 +18,7 @@ from payments.serializers import (
 )
 from payments.services.factory import get_payment_service
 from payments.services.dispatch import fulfill_payment
+from rplatform.locks import claim_once
 from payments.services.payu import PayUPaymentService
 from bookings.services.confirm_booking import confirm_booking_after_payment
 from subscriptions.models import SubscriptionPlan, UserSubscription
@@ -224,12 +225,21 @@ def _handle_payu_return(request):
 
     if ok:
         if payment.status != Payment.STATUS_SUCCESS:
-            service.confirm_payment(
-                payment=payment,
-                gateway_payment_id=data.get("mihpayid"),
-                raw=data,
-            )
-            fulfill_payment(payment)
+            # PayU can deliver the same result twice (browser surl POST AND the
+            # server-to-server webhook, near-simultaneously). Without this guard
+            # both can pass the status check and confirm+fulfil the same payment
+            # twice — double subscription activation / double booking confirm.
+            # claim_once makes fulfilment run once per payment; the SUCCESS check
+            # above is the durable backstop if Redis is down (claim fails open).
+            if claim_once(f"payu:fulfil:{payment.uuid}", ttl=600):
+                service.confirm_payment(
+                    payment=payment,
+                    gateway_payment_id=data.get("mihpayid"),
+                    raw=data,
+                )
+                fulfill_payment(payment)
+            else:
+                logger.info("PayU fulfil already claimed for %s — skipping duplicate", payment.uuid)
     else:
         if payment.status == Payment.STATUS_INITIATED:
             service.fail_payment(payment=payment, reason=data.get("status"), raw=data)

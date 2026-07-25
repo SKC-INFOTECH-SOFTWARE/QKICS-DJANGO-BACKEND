@@ -24,6 +24,8 @@ import cloudinary.utils
 from django.conf import settings
 from django.utils import timezone
 
+from rplatform.locks import distributed_lock
+
 logger = logging.getLogger(__name__)
 
 
@@ -537,8 +539,28 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
             try:
                 recording = CallRecording.objects.get(egress_id=ei.egress_id)
 
+                # A duplicate egress_ended that arrives AFTER a successful upload
+                # (local file already deleted, status READY) must NOT re-run the
+                # upload — it would find no local file and wrongly mark a good
+                # recording FAILED. Only upload if still RECORDING.
+                if recording.status != CallRecording.STATUS_RECORDING:
+                    logger.info(
+                        "egress_ended for %s but recording status=%s — skipping duplicate upload",
+                        ei.egress_id, recording.status,
+                    )
+                    return event_name
+
                 def upload_in_background():
-                    upload_recording_to_cloudinary(recording=recording)
+                    # Serialise concurrent deliveries: only one worker uploads.
+                    # ttl > worst-case upload time so a crash can't wedge it.
+                    with distributed_lock(f"egress:upload:{ei.egress_id}", ttl=900) as got:
+                        if not got:
+                            logger.info(
+                                "egress upload already in progress for %s — skipping duplicate",
+                                ei.egress_id,
+                            )
+                            return
+                        upload_recording_to_cloudinary(recording=recording)
 
                 t = threading.Thread(target=upload_in_background, daemon=True)
                 t.start()
@@ -569,11 +591,19 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
                 )
                 logger.info("CallRoom ACTIVE: room=%s", room_name)
 
-            # Start recording only once (no duplicate egress)
+            # Start recording only once. The exists() check alone is a
+            # check-then-act race: two near-simultaneous participant_joined
+            # events both see "no recording" and start two egresses. The lock
+            # makes the check-and-start atomic across workers.
             if not CallRecording.objects.filter(room=call_room).exists():
                 import threading
                 def _start_rec():
-                    start_room_recording(call_room=call_room)
+                    with distributed_lock(f"egress:start:{call_room.id}", ttl=60) as got:
+                        if not got:
+                            return  # another worker is already starting it
+                        if CallRecording.objects.filter(room=call_room).exists():
+                            return  # started by the worker that held the lock first
+                        start_room_recording(call_room=call_room)
                 threading.Thread(target=_start_rec, daemon=True).start()
                 logger.info("Recording triggered: first participant joined room=%s", room_name)
 

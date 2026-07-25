@@ -251,6 +251,39 @@ Never invalidate with `cache.clear()` — it is db-wide (see §3.1.1).
 
 Steps 1–3 deliver the large majority of the benefit. Steps 4–6 are demand-driven.
 
+## 5a. Redis beyond caching — idempotency & locks — ✅ DONE
+
+Redis is more than a cache; the same instance now backs correctness-critical
+dedup. New module `rplatform/locks.py` (built on the cache framework, so it
+honours `CACHE_ENABLED` and needs no separate Redis client — `cache.add()` is an
+atomic SETNX). Both helpers **fail open** on a cache error: a lost lock only lets
+a duplicate through, and the DB-state guard is always the real backstop.
+
+| Helper | Semantics |
+|---|---|
+| `claim_once(key, ttl)` | returns True the first call, False after — run-once marker |
+| `distributed_lock(key, ttl)` | context manager, yields True/False, token-guarded release |
+
+Wired at three race points (all previously unguarded):
+
+1. **PayU double-fulfilment** (`payments/views.py` `_handle_payu_return`) — the
+   browser `surl` POST and the server-to-server webhook can arrive together; both
+   passed the `status != SUCCESS` check and confirmed+fulfilled twice (double
+   subscription / booking). Now guarded by `claim_once("payu:fulfil:{uuid}", 600)`.
+2. **Duplicate recording upload** (`calls/services/livekit_service.py`
+   `egress_ended`) — a duplicate webhook spawned a second Cloudinary upload;
+   worse, a duplicate arriving *after* success (local file already deleted) marked
+   a good recording FAILED. Fixed with a `status == RECORDING` guard **plus**
+   `distributed_lock("egress:upload:{egress_id}", 900)`.
+3. **Double egress start** (`participant_joined`) — the `exists()` check was
+   check-then-act; two simultaneous joins started two egresses. Now inside
+   `distributed_lock("egress:start:{room_id}", 60)` with a re-check.
+
+Verified on LocMemCache: SETNX one-winner-of-20-threads, one-holder-at-a-time,
+release + re-acquire, and fail-open when `CACHE_ENABLED=False` all pass.
+
+---
+
 ## 6. Risks
 
 - **Premium content leak** — mitigated by never caching serialized post payloads (§2.2) and by
