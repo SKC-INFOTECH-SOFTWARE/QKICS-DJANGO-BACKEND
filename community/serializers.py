@@ -72,12 +72,17 @@ class AuthorSerializer(serializers.ModelSerializer):
 
 
 class TagSerializer(serializers.ModelSerializer):
+    # Number of posts using this tag — annotated by the list view. Lets clients
+    # rank tags by popularity ("trending") instead of showing raw custom tags.
+    post_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Tag
         fields = [
             "id",
             "name",
             "slug",
+            "post_count",
         ]
 
 

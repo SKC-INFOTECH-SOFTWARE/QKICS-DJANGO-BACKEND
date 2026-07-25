@@ -140,20 +140,36 @@ class TagListCreateView(APIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get(self, request):
-        tags = Tag.objects.all().order_by("name")
+        # Annotate usage so clients can rank by popularity. Still returns ALL
+        # tags (the create-post picker needs the full list); ordered popular-first
+        # so a "top N" slice on the client is the trending set.
+        tags = (
+            Tag.objects.annotate(post_count=Count("posts"))
+            .order_by("-post_count", "name")
+        )
         return Response(TagSerializer(tags, many=True).data)
 
     def post(self, request):
+        # Any authenticated user can add a custom tag while composing a post.
+        # get-or-create (case-insensitive) so two users typing the same tag reuse
+        # one row instead of hitting the unique constraint — and so trending stays
+        # meaningful. Noise is handled by ranking tags by usage on read, not by
+        # gatekeeping creation.
         if not request.user.is_authenticated:
             return Response({"error": "Authentication required"}, status=401)
 
-        if request.user.user_type not in ["admin", "superadmin"]:
-            return Response({"error": "Only admins can create tags"}, status=403)
+        name = (request.data.get("name") or "").strip()
+        if not name:
+            return Response({"error": "Tag name is required"}, status=400)
+        if len(name) > 80:
+            return Response({"error": "Tag name too long (max 80 characters)"}, status=400)
 
-        serializer = TagSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=201)
+        tag = Tag.objects.filter(name__iexact=name).first()
+        if tag:
+            return Response(TagSerializer(tag).data, status=200)
+
+        tag = Tag.objects.create(name=name)
+        return Response(TagSerializer(tag).data, status=201)
 
 
 class TagDetailView(APIView):
