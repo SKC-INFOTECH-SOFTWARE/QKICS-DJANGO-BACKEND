@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import CallRoom, CallParticipant, CallRecording, CallMessage, CallNote
+from .models import (
+    CallRoom, CallParticipant, CallRecording, CallMessage, CallNote, RecordingEvent,
+)
 
 
 class CallParticipantInline(admin.TabularInline):
@@ -25,13 +27,24 @@ class CallRecordingInline(admin.TabularInline):
         return f"{obj.file_size_bytes / 1024 / 1024:.1f} MB" if obj.file_size_bytes else "—"
 
 
+class RecordingEventInline(admin.TabularInline):
+    model           = RecordingEvent
+    extra           = 0
+    can_delete      = False
+    readonly_fields = ["event", "recording", "detail", "created_at"]
+    ordering        = ["-created_at"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(CallRoom)
 class CallRoomAdmin(admin.ModelAdmin):
     list_display    = ["id", "user", "advisor", "status", "scheduled_start", "dur", "rec_status", "created_at"]
     list_filter     = ["status", "created_at"]
     search_fields   = ["user__username", "advisor__username", "sfu_room_name"]
     readonly_fields = ["id", "sfu_room_name", "started_at", "ended_at", "created_at", "updated_at"]
-    inlines         = [CallParticipantInline, CallRecordingInline]
+    inlines         = [CallParticipantInline, CallRecordingInline, RecordingEventInline]
 
     def dur(self, obj):
         d = obj.duration_seconds
@@ -50,10 +63,10 @@ class CallRoomAdmin(admin.ModelAdmin):
 
 @admin.register(CallRecording)
 class CallRecordingAdmin(admin.ModelAdmin):
-    list_display    = ["id", "participants", "status", "size_mb", "started_at", "delete_after"]
+    list_display    = ["id", "participants", "status", "size_mb", "error_message", "started_at", "delete_after"]
     list_filter     = ["status", "started_at"]
     readonly_fields = ["id", "room", "egress_id", "cloudinary_public_id", "cloudinary_secure_url",
-                       "local_file_path", "file_size_bytes", "duration_seconds",
+                       "local_file_path", "file_size_bytes", "duration_seconds", "error_message",
                        "started_at", "ended_at", "delete_after", "deleted_at"]
 
     def participants(self, obj):
@@ -64,6 +77,21 @@ class CallRecordingAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False  # Use cleanup_recordings command
+
+
+@admin.register(RecordingEvent)
+class RecordingEventAdmin(admin.ModelAdmin):
+    list_display    = ["created_at", "event", "room", "recording", "short_detail"]
+    list_filter     = ["event", "created_at"]
+    search_fields   = ["room__sfu_room_name", "detail"]
+    readonly_fields = ["room", "recording", "event", "detail", "created_at"]
+
+    def short_detail(self, obj):
+        return (obj.detail[:80] + "…") if len(obj.detail) > 80 else obj.detail
+    short_detail.short_description = "Detail"
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(CallNote)

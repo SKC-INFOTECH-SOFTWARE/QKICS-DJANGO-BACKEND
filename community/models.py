@@ -65,6 +65,24 @@ class Post(models.Model):
         help_text="True = Knowledge Hub post (Idea/Structured knowledge post)",
         db_index=True,
     )
+
+    # ---- Moderation (admin) ----
+    is_hidden = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Hidden from the public feed by a moderator (soft removal).",
+    )
+    hidden_at = models.DateTimeField(null=True, blank=True)
+    hidden_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="hidden_posts",
+        help_text="Admin who hid this post.",
+    )
+    moderation_reason = models.CharField(max_length=300, blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -73,6 +91,7 @@ class Post(models.Model):
         indexes = [
             models.Index(fields=["knowledge_hub"]),
             models.Index(fields=["author", "created_at"]),
+            models.Index(fields=["is_hidden", "created_at"]),
         ]
 
     def __str__(self):
@@ -122,6 +141,24 @@ class Comment(models.Model):
         related_name="replies",
         help_text="Null = top-level comment, Not null = reply",
     )
+
+    # ---- Moderation (admin) ----
+    is_hidden = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Hidden from the public feed by a moderator (soft removal).",
+    )
+    hidden_at = models.DateTimeField(null=True, blank=True)
+    hidden_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="hidden_comments",
+        help_text="Admin who hid this comment.",
+    )
+    moderation_reason = models.CharField(max_length=300, blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -130,6 +167,7 @@ class Comment(models.Model):
         indexes = [
             models.Index(fields=["post", "created_at"]),
             models.Index(fields=["parent"]),
+            models.Index(fields=["is_hidden"]),
         ]
 
     def __str__(self):

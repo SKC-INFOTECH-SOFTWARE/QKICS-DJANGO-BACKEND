@@ -46,7 +46,7 @@ User = get_user_model()
 # =====================================================
 
 
-def _related_count(model, fk_field):
+def _related_count(model, fk_field, extra_filter=None):
     """
     COUNT of a reverse relation, as a correlated subquery.
 
@@ -54,11 +54,16 @@ def _related_count(model, fk_field):
     joined rows (comments x likes), which both inflates the counts and explodes
     the row set on busy posts. One subquery per relation keeps each count
     independent and the join out of the main query.
+
+    `extra_filter` narrows the counted rows (e.g. exclude moderator-hidden
+    comments so the visible count matches what actually renders).
     """
+    qs = model.objects.filter(**{fk_field: OuterRef("pk")})
+    if extra_filter:
+        qs = qs.filter(**extra_filter)
     return Coalesce(
         Subquery(
-            model.objects.filter(**{fk_field: OuterRef("pk")})
-            .order_by()
+            qs.order_by()
             .values(fk_field)
             .annotate(c=Count("id"))
             .values("c")[:1],
@@ -68,21 +73,30 @@ def _related_count(model, fk_field):
     )
 
 
-def get_optimized_post_queryset(user=None):
+def get_optimized_post_queryset(user=None, include_hidden=False):
     """
     Base post queryset with counts + the caller's like state resolved in SQL.
 
     Pass `user` on any path that serializes posts: it annotates `is_liked_ann`,
     which is what keeps PostSerializer from running one EXISTS query per post.
+
+    Moderator-hidden posts (`is_hidden`) are excluded from every public path by
+    default. Admin/moderation code that must see them passes include_hidden=True.
     """
     qs = (
         Post.objects.select_related("author")
         .prefetch_related("tags", "media")
         .annotate(
-            total_comments_count=_related_count(Comment, "post"),
+            # exclude hidden comments so the count matches what actually renders
+            total_comments_count=_related_count(
+                Comment, "post", extra_filter={"is_hidden": False}
+            ),
             total_likes_count=_related_count(Like, "post"),
         )
     )
+
+    if not include_hidden:
+        qs = qs.filter(is_hidden=False)
 
     if user is not None and getattr(user, "is_authenticated", False):
         qs = qs.annotate(
@@ -92,12 +106,22 @@ def get_optimized_post_queryset(user=None):
     return qs
 
 
-def get_optimized_comment_queryset(user=None):
-    """Same idea as get_optimized_post_queryset(), for comments and replies."""
+def get_optimized_comment_queryset(user=None, include_hidden=False):
+    """Same idea as get_optimized_post_queryset(), for comments and replies.
+
+    Moderator-hidden comments are excluded from public paths by default; admin
+    moderation code passes include_hidden=True. The reply count also excludes
+    hidden replies so it matches what renders.
+    """
     qs = Comment.objects.select_related("author").annotate(
-        total_replies_count=_related_count(Comment, "parent"),
+        total_replies_count=_related_count(
+            Comment, "parent", extra_filter={"is_hidden": False}
+        ),
         total_likes_count=_related_count(Like, "comment"),
     )
+
+    if not include_hidden:
+        qs = qs.filter(is_hidden=False)
 
     if user is not None and getattr(user, "is_authenticated", False):
         qs = qs.annotate(

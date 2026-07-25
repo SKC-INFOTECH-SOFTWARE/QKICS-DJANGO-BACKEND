@@ -286,6 +286,39 @@ def notify_booking_payment_failed(booking):
 
 
 # ============================================================
+# OPS / ADMIN ALERTS
+# ============================================================
+
+
+def notify_admins_recording_failed(*, room_label, detail, room_id=None):
+    """
+    Alert every active staff user when a call recording fails somewhere in the
+    pipeline (egress start, egress run, or Cloudinary upload). Best-effort: a
+    down notification service must never break the recording flow.
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    def _send():
+        admins = User.objects.filter(is_staff=True, is_active=True).only("id", "email")
+        for admin in admins:
+            send_notification(
+                event="RECORDING_FAILED",
+                user_id=admin.id,
+                user_email=admin.email,
+                title="⚠️ Call recording failed",
+                body=f"Recording for {room_label} failed: {detail}"[:300],
+                channels=["IN_APP"],
+                data={
+                    "roomId": str(room_id) if room_id else None,
+                    "detail": (detail or "")[:300],
+                },
+            )
+
+    _async(_send)
+
+
+# ============================================================
 # INVESTOR BOOKING NOTIFICATIONS
 # ============================================================
 

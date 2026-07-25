@@ -16,6 +16,7 @@ pip install livekit-api cloudinary
 import asyncio
 import logging
 import os
+import threading
 from datetime import timedelta
 
 import cloudinary
@@ -65,6 +66,73 @@ def _run(coro):
             return future.result(timeout=10)
     else:
         return asyncio.run(coro)
+
+
+# ──────────────────────────────────────────────────────
+# RECORDING AUDIT TRAIL + ADMIN ALERTS
+# ──────────────────────────────────────────────────────
+
+_FAILURE_EVENTS = {"EGRESS_START_FAILED", "EGRESS_FAILED", "UPLOAD_FAILED"}
+
+
+def _log_event(event, *, room=None, recording=None, detail=""):
+    """Append a RecordingEvent row (audit trail) and mirror it to the logs.
+    Never raises — auditing must not break the pipeline."""
+    detail = (detail or "")[:2000]
+    try:
+        from calls.models import RecordingEvent
+        RecordingEvent.objects.create(
+            room=room, recording=recording, event=event, detail=detail,
+        )
+    except Exception:
+        logger.exception("Failed to write RecordingEvent %s", event)
+
+    log = logger.error if event in _FAILURE_EVENTS else logger.info
+    log("[recording] %s room=%s rec=%s %s", event,
+        getattr(room, "id", None), getattr(recording, "id", None), detail)
+
+
+def _alert_recording_failed(call_room, detail):
+    """Best-effort admin alert on a recording failure. Swallows all errors."""
+    try:
+        from notifications.services.events import notify_admins_recording_failed
+        label = getattr(call_room, "sfu_room_name", None) or f"room {getattr(call_room, 'id', '?')}"
+        notify_admins_recording_failed(
+            room_label=label, detail=detail, room_id=getattr(call_room, "id", None),
+        )
+    except Exception:
+        logger.exception("Failed to alert admins about recording failure")
+
+
+def ensure_recording_started(call_room, trigger=""):
+    """
+    Idempotently mark the room ACTIVE and start recording if it isn't already.
+
+    Safe to call from multiple webhook events — recording now starts on BOTH
+    `room_started` AND `participant_joined`, so a single dropped event can no
+    longer leave a call unrecorded. The exists()-check plus the distributed lock
+    dedupe concurrent triggers down to one egress.
+    """
+    from calls.models import CallRoom, CallRecording
+
+    if call_room.status == CallRoom.STATUS_WAITING:
+        CallRoom.objects.filter(id=call_room.id).update(
+            status=CallRoom.STATUS_ACTIVE, started_at=timezone.now(),
+        )
+        logger.info("CallRoom ACTIVE: room=%s (%s)", call_room.sfu_room_name, trigger)
+
+    if CallRecording.objects.filter(room=call_room).exists():
+        return
+
+    def _work():
+        with distributed_lock(f"egress:start:{call_room.id}", ttl=60) as got:
+            if not got:
+                return  # another worker is already starting it
+            if CallRecording.objects.filter(room=call_room).exists():
+                return  # started by the worker that held the lock first
+            start_room_recording(call_room=call_room, trigger=trigger)
+
+    threading.Thread(target=_work, daemon=True).start()
 
 
 # ──────────────────────────────────────────────────────
@@ -303,16 +371,19 @@ async def _start_egress_local(room_name: str, local_filepath: str):
         await lk.aclose()
 
 
-def start_room_recording(*, call_room) -> str | None:
+def start_room_recording(*, call_room, trigger="") -> str | None:
     """
     Start recording for a CallRoom.
     Saves to local /recordings/<room_id>.mp4
     Returns egress_id on success.
     """
-    from calls.models import CallRecording
+    from calls.models import CallRecording, RecordingEvent
 
     if not call_room.sfu_room_name:
         logger.error("start_room_recording: CallRoom %s has no sfu_room_name, skipping.", call_room.id)
+        _log_event(RecordingEvent.EGRESS_START_FAILED, room=call_room,
+                   detail="CallRoom has no sfu_room_name")
+        _alert_recording_failed(call_room, "room has no sfu_room_name")
         return None
 
     local_path = f"/recordings/{call_room.id}.mp4"
@@ -320,7 +391,7 @@ def start_room_recording(*, call_room) -> str | None:
     try:
         info = _run(_start_egress_local(call_room.sfu_room_name, local_path))
 
-        CallRecording.objects.create(
+        recording = CallRecording.objects.create(
             room=call_room,
             status=CallRecording.STATUS_RECORDING,
             egress_id=info.egress_id,
@@ -328,10 +399,14 @@ def start_room_recording(*, call_room) -> str | None:
         )
 
         logger.info("Recording started: room=%s egress=%s", call_room.id, info.egress_id)
+        _log_event(RecordingEvent.EGRESS_STARTED, room=call_room, recording=recording,
+                   detail=f"egress={info.egress_id} trigger={trigger}")
         return info.egress_id
 
     except Exception as e:
         logger.error("start_room_recording [%s]: %s", call_room.id, e)
+        _log_event(RecordingEvent.EGRESS_START_FAILED, room=call_room, detail=str(e))
+        _alert_recording_failed(call_room, f"egress start failed: {e}")
         return None
 
 
@@ -372,18 +447,19 @@ def upload_recording_to_cloudinary(*, recording) -> bool:
 
     Returns True on success, False on failure.
     """
-    from calls.models import CallRecording
+    from calls.models import CallRecording, RecordingEvent
 
     local_path = recording.local_file_path
 
     if not local_path or not os.path.exists(local_path):
-        logger.error(
-            "Local file not found for recording %s: %s",
-            recording.id, local_path,
-        )
+        msg = f"local file not found: {local_path}"
+        logger.error("Local file not found for recording %s: %s", recording.id, local_path)
         CallRecording.objects.filter(id=recording.id).update(
             status=CallRecording.STATUS_FAILED,
+            error_message=msg[:500],
         )
+        _log_event(RecordingEvent.UPLOAD_FAILED, room=recording.room, recording=recording, detail=msg)
+        _alert_recording_failed(recording.room, msg)
         return False
 
     try:
@@ -393,6 +469,8 @@ def upload_recording_to_cloudinary(*, recording) -> bool:
         CallRecording.objects.filter(id=recording.id).update(
             status=CallRecording.STATUS_UPLOADING,
         )
+        _log_event(RecordingEvent.UPLOAD_STARTED, room=recording.room, recording=recording,
+                   detail=f"file={local_path}")
 
         # Upload to Cloudinary
         public_id = f"qkics/recordings/{recording.room_id}"
@@ -423,6 +501,8 @@ def upload_recording_to_cloudinary(*, recording) -> bool:
             "Cloudinary upload complete: recording=%s public_id=%s",
             recording.id, result["public_id"],
         )
+        _log_event(RecordingEvent.UPLOAD_COMPLETE, room=recording.room, recording=recording,
+                   detail=f"public_id={result['public_id']} size={file_size}")
 
         # Delete local file after successful upload
         os.remove(local_path)
@@ -437,7 +517,10 @@ def upload_recording_to_cloudinary(*, recording) -> bool:
         logger.error("Cloudinary upload failed [%s]: %s", recording.id, e)
         CallRecording.objects.filter(id=recording.id).update(
             status=CallRecording.STATUS_FAILED,
+            error_message=str(e)[:500],
         )
+        _log_event(RecordingEvent.UPLOAD_FAILED, room=recording.room, recording=recording, detail=str(e))
+        _alert_recording_failed(recording.room, f"cloudinary upload failed: {e}")
         return False
 
 
@@ -506,7 +589,7 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
     room_finished → mark CallRoom ENDED, stop active recordings
     """
     from livekit import api as lkapi
-    from calls.models import CallRoom, CallRecording
+    from calls.models import CallRoom, CallRecording, RecordingEvent
 
     verifier = lkapi.TokenVerifier(
         api_key=settings.LIVEKIT_API_KEY,
@@ -550,6 +633,9 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
                     )
                     return event_name
 
+                _log_event(RecordingEvent.EGRESS_ENDED, room=recording.room, recording=recording,
+                           detail=f"egress={ei.egress_id}")
+
                 def upload_in_background():
                     # Serialise concurrent deliveries: only one worker uploads.
                     # ttl > worst-case upload time so a crash can't wedge it.
@@ -574,43 +660,27 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
             CallRecording.objects.filter(egress_id=ei.egress_id).update(
                 status=CallRecording.STATUS_FAILED,
                 ended_at=timezone.now(),
+                error_message=f"egress ended with status={ei.status}"[:500],
             )
             logger.error("Egress failed: id=%s status=%s", ei.egress_id, ei.status)
+            rec = CallRecording.objects.filter(egress_id=ei.egress_id).select_related("room").first()
+            _log_event(RecordingEvent.EGRESS_FAILED, room=getattr(rec, "room", None), recording=rec,
+                       detail=f"egress={ei.egress_id} status={ei.status}")
+            if rec:
+                _alert_recording_failed(rec.room, f"egress failed (status={ei.status})")
 
-    # ── First participant joins → start recording + mark ACTIVE ──
-    elif event_name == "participant_joined":
+    # ── Room starts OR first participant joins → ensure recording is running ──
+    # Recording now triggers on BOTH events so a single dropped webhook can't
+    # leave a call unrecorded. ensure_recording_started() is idempotent.
+    elif event_name in ("room_started", "participant_joined"):
         room_name = event.room.name
         try:
             call_room = CallRoom.objects.get(sfu_room_name=room_name)
-
-            # Mark ACTIVE on first join
-            if call_room.status == CallRoom.STATUS_WAITING:
-                CallRoom.objects.filter(id=call_room.id).update(
-                    status=CallRoom.STATUS_ACTIVE,
-                    started_at=timezone.now(),
-                )
-                logger.info("CallRoom ACTIVE: room=%s", room_name)
-
-            # Start recording only once. The exists() check alone is a
-            # check-then-act race: two near-simultaneous participant_joined
-            # events both see "no recording" and start two egresses. The lock
-            # makes the check-and-start atomic across workers.
-            if not CallRecording.objects.filter(room=call_room).exists():
-                import threading
-                def _start_rec():
-                    with distributed_lock(f"egress:start:{call_room.id}", ttl=60) as got:
-                        if not got:
-                            return  # another worker is already starting it
-                        if CallRecording.objects.filter(room=call_room).exists():
-                            return  # started by the worker that held the lock first
-                        start_room_recording(call_room=call_room)
-                threading.Thread(target=_start_rec, daemon=True).start()
-                logger.info("Recording triggered: first participant joined room=%s", room_name)
-
+            ensure_recording_started(call_room, trigger=event_name)
         except CallRoom.DoesNotExist:
-            logger.warning("participant_joined: no CallRoom for sfu_room_name=%s", room_name)
+            logger.warning("%s: no CallRoom for sfu_room_name=%s", event_name, room_name)
         except Exception as e:
-            logger.error("participant_joined handler [%s]: %s", room_name, e)
+            logger.error("%s handler [%s]: %s", event_name, room_name, e)
 
     # ── Room closed → mark ended only if the slot time has passed ──
     elif event_name == "room_finished":

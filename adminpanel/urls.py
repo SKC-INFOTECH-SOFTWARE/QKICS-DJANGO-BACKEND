@@ -26,6 +26,14 @@ from .views.companies import (
 )
 from .views.company_settings import CompanyPostSettingsView
 from .views.dashboard import AdminDashboardStatsView
+from .views.posts import (
+    AdminPostListView,
+    AdminPostModerateView,
+    AdminPostDeleteView,
+    AdminCommentListView,
+    AdminCommentModerateView,
+    AdminCommentDeleteView,
+)
 
 urlpatterns = [
     # Admin dashboard metrics
@@ -127,5 +135,38 @@ urlpatterns = [
         "company-settings/",
         CompanyPostSettingsView.as_view(),
         name="admin-company-settings",
+    ),
+    # =====================================================
+    # COMMUNITY FEED POST MODERATION
+    # =====================================================
+    path(
+        "community/posts/",
+        AdminPostListView.as_view(),
+        name="admin-community-posts",
+    ),
+    path(
+        "community/posts/<int:id>/moderate/",
+        AdminPostModerateView.as_view(),
+        name="admin-community-post-moderate",
+    ),
+    path(
+        "community/posts/<int:id>/delete/",
+        AdminPostDeleteView.as_view(),
+        name="admin-community-post-delete",
+    ),
+    path(
+        "community/comments/",
+        AdminCommentListView.as_view(),
+        name="admin-community-comments",
+    ),
+    path(
+        "community/comments/<int:id>/moderate/",
+        AdminCommentModerateView.as_view(),
+        name="admin-community-comment-moderate",
+    ),
+    path(
+        "community/comments/<int:id>/delete/",
+        AdminCommentDeleteView.as_view(),
+        name="admin-community-comment-delete",
     ),
 ]

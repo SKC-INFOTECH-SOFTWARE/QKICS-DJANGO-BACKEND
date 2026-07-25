@@ -149,6 +149,10 @@ class CallRecording(models.Model):
     file_size_bytes  = models.BigIntegerField(null=True, blank=True)
     duration_seconds = models.IntegerField(null=True, blank=True)
 
+    # Last error surfaced to admins when status == FAILED (quick read; the full
+    # trail lives in RecordingEvent).
+    error_message = models.CharField(max_length=500, blank=True, default="")
+
     started_at   = models.DateTimeField(auto_now_add=True)
     ended_at     = models.DateTimeField(null=True, blank=True)
     delete_after = models.DateTimeField(db_index=True)
@@ -165,6 +169,55 @@ class CallRecording(models.Model):
 
     def __str__(self):
         return f"Recording {self.id} [{self.status}]"
+
+
+class RecordingEvent(models.Model):
+    """
+    Append-only audit trail for the recording pipeline.
+
+    Every stage (trigger → egress start → egress end → upload → done/failed)
+    writes a row here so a failure is never silent: an admin can open one room
+    and read exactly how far the recording got and why it stopped.
+    """
+    TRIGGERED           = "TRIGGERED"
+    EGRESS_STARTED      = "EGRESS_STARTED"
+    EGRESS_START_FAILED = "EGRESS_START_FAILED"
+    EGRESS_ENDED        = "EGRESS_ENDED"
+    EGRESS_FAILED       = "EGRESS_FAILED"
+    UPLOAD_STARTED      = "UPLOAD_STARTED"
+    UPLOAD_COMPLETE     = "UPLOAD_COMPLETE"
+    UPLOAD_FAILED       = "UPLOAD_FAILED"
+
+    EVENT_CHOICES = (
+        (TRIGGERED,           "Triggered"),
+        (EGRESS_STARTED,      "Egress started"),
+        (EGRESS_START_FAILED, "Egress start failed"),
+        (EGRESS_ENDED,        "Egress ended"),
+        (EGRESS_FAILED,       "Egress failed"),
+        (UPLOAD_STARTED,      "Upload started"),
+        (UPLOAD_COMPLETE,     "Upload complete"),
+        (UPLOAD_FAILED,       "Upload failed"),
+    )
+
+    id = models.BigAutoField(primary_key=True)
+    room = models.ForeignKey(
+        CallRoom, on_delete=models.CASCADE,
+        related_name="recording_events", null=True, blank=True,
+    )
+    recording = models.ForeignKey(
+        CallRecording, on_delete=models.SET_NULL,
+        related_name="events", null=True, blank=True,
+    )
+    event  = models.CharField(max_length=24, choices=EVENT_CHOICES, db_index=True)
+    detail = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes  = [models.Index(fields=["room", "created_at"])]
+
+    def __str__(self):
+        return f"{self.event} @ {self.created_at:%Y-%m-%d %H:%M:%S}"
 
 
 class CallMessage(models.Model):

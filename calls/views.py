@@ -440,6 +440,7 @@ class AdminCallRecordingListView(generics.ListAPIView):
                 "room_id":               str(r.room_id),
                 "participants":          f"{r.room.user.username if r.room.user else 'deleted'} ↔ {r.room.advisor.username if r.room.advisor else 'deleted'}",
                 "status":                r.status,
+                "error_message":         r.error_message,
                 "cloudinary_public_id":  r.cloudinary_public_id,
                 "file_size_mb":          round(r.file_size_bytes / 1024 / 1024, 2) if r.file_size_bytes else None,
                 "duration_seconds":      r.duration_seconds,
