@@ -109,3 +109,38 @@ def cancel_auto_cut(*, room_id: str):
         get_scheduler().remove_job(f"auto_cut_{room_id}")
     except Exception:
         pass
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Recurring sweep: release slots held by abandoned checkouts
+# ──────────────────────────────────────────────────────────────────────────
+
+def schedule_booking_expiry(*, interval_minutes: int = 5):
+    """
+    Register a single recurring job that expires stale unpaid bookings.
+    Idempotent — replace_existing keeps exactly one job across reloads/workers.
+    """
+    try:
+        scheduler = get_scheduler()
+        scheduler.add_job(
+            _expire_stale_bookings_job,
+            trigger="interval",
+            minutes=interval_minutes,
+            id="expire_stale_bookings",
+            name="Expire stale unpaid bookings",
+            replace_existing=True,
+            coalesce=True,          # collapse missed runs into one
+            max_instances=1,        # never overlap two sweeps
+            misfire_grace_time=300,
+        )
+        logger.info("Booking-expiry sweep scheduled every %s min.", interval_minutes)
+    except Exception as e:
+        logger.error("schedule_booking_expiry: %s", e)
+
+
+def _expire_stale_bookings_job():
+    try:
+        from bookings.services.expire_stale import expire_stale_bookings
+        expire_stale_bookings()
+    except Exception as e:
+        logger.error("_expire_stale_bookings_job: %s", e)

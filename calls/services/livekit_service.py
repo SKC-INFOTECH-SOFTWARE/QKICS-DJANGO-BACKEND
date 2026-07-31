@@ -365,6 +365,19 @@ async def _start_egress_local(room_name: str, local_filepath: str):
                     filepath=local_filepath,
                 )
             ],
+            # ── Lightweight encode for 2-core VPS ────────────────────────────
+            # Default preset = 720p30, jo Chrome-composite ke saath 2-core par
+            # CPU choke kar deta hai. 480p @ 24fps se pixel*fps ~half ho jaata
+            # hai → kaafi CPU bachta hai, quality consultation ke liye theek.
+            # 4-core pe jaao to `advanced` hata do (default 720p30 wapas).
+            advanced=ep.EncodingOptions(
+                width=854,
+                height=480,
+                framerate=24,
+                video_bitrate=1700,   # kbps
+                audio_bitrate=128,    # kbps
+                key_frame_interval=4,
+            ),
         )
         return await lk.egress.start_room_composite_egress(req)
     finally:

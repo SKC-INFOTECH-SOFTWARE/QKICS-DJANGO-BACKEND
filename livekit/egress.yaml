@@ -23,5 +23,14 @@ template_port: 7980
 # false = no seccomp profile (works with cap_add: SYS_ADMIN in docker-compose)
 enable_chrome_sandbox: false
 
+# ─── CPU budgeting (2-core VPS) ──────────────────────────────────────────────
+# Default room_composite_cpu_cost = 3.0 → egress ek 2-core box par recording
+# request ko hi REJECT kar deta hai ("insufficient CPU"). Ise 1.5 par set karne se
+# egress maan leta hai ki ek room-composite 2 core par fit ho jaayega.
+# Trade-off: ek time par ~1 hi recording safely chalegi; 4-core hone par ise
+# hata do (default 3.0 wapas) taaki quality/headroom better rahe.
+cpu_cost:
+  room_composite_cpu_cost: 1.5
+
 logging:
   level: info
