@@ -32,18 +32,30 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+          REPO_URL:    ${{ secrets.REPO_URL }}
         with:
           host:     ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key:      ${{ secrets.VPS_SSH_KEY }}
           timeout: 30m
           command_timeout: 30m
-          envs:     DEPLOY_PATH
+          envs:     DEPLOY_PATH,REPO_URL
           script: |
             set -e
-            cd $DEPLOY_PATH
 
-            git pull origin main
+            # First-time bootstrap: clone the repo if it isn't there yet.
+            mkdir -p "$DEPLOY_PATH"
+            cd "$DEPLOY_PATH"
+            if [ -d .git ]; then
+              echo "--- Repo exists, pulling latest ---"
+              git fetch origin main
+              git checkout main
+              git pull origin main
+            else
+              echo "--- No repo found, cloning ---"
+              git clone "$REPO_URL" .
+              git checkout main
+            fi
 
             mkdir -p livekit staticfiles media recordings
 
