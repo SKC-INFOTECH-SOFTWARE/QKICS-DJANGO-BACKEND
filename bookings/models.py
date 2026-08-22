@@ -25,7 +25,12 @@ class ExpertSlot(models.Model):
     )
 
     # Max users allowed to book a single BATCH slot (business cap).
-    MAX_BATCH_CAPACITY = 10
+    # NOTE: this is only a business ceiling. The current group call is full-mesh
+    # (every participant publishes camera), which is O(N²) on the SFU — a room
+    # anywhere near this size needs a large/clustered LiveKit node + webinar
+    # (view-only) mode, NOT the 2-core VPS. Raising the number does not make a
+    # big full-mesh call actually usable.
+    MAX_BATCH_CAPACITY = 80
 
     id = models.BigAutoField(primary_key=True)
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
@@ -192,6 +197,7 @@ class SlotRecurringPattern(models.Model):
     is_active = models.BooleanField(default=True)  # Added to enable/disable patterns
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
 
     class Meta:
         indexes = [
@@ -407,6 +413,7 @@ class Booking(models.Model):
     def is_active(self):
         """Check if booking is in an active state"""
         return self.status in self.ACTIVE_STATUSES
+
 
     def is_terminal(self):
         """Check if booking is in a terminal state"""

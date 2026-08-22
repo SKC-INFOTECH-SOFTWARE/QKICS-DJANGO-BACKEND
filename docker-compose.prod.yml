@@ -29,7 +29,10 @@ services:
   # Django
   # ─────────────────────────────────────────────────────────
   django:
-    image: ${DOCKER_USERNAME}/qkics_backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: qkics_backend:latest
     container_name: Qkics-Backend
     env_file:
       - .env
