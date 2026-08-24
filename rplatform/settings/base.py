@@ -248,6 +248,27 @@ TURN_USERNAME = config("TURN_USERNAME", default="")
 TURN_PASSWORD = config("TURN_PASSWORD", default="")
 
 # ==================================================
+# LOGGING
+# ==================================================
+# WARNING+ records are mirrored into the SystemLog table (admin panel "Logs").
+# production.py overrides this with the same handlers; this block covers dev.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+        "db": {
+            "class": "adminpanel.logging_handler.DatabaseLogHandler",
+            "level": "WARNING",
+        },
+    },
+    "root": {
+        "handlers": ["console", "db"],
+        "level": "INFO",
+    },
+}
+
+# ==================================================
 # PAYMENTS (gateway-agnostic)
 # ==================================================
 # Which gateway is live. Swap the gateway by changing ONLY this value

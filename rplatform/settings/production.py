@@ -75,9 +75,14 @@ LOGGING = {
     "disable_existing_loggers": False,
     "handlers": {
         "console": {"class": "logging.StreamHandler"},
+        # Mirror WARNING+ records into the SystemLog table for the admin panel.
+        "db": {
+            "class": "adminpanel.logging_handler.DatabaseLogHandler",
+            "level": "WARNING",
+        },
     },
     "root": {
-        "handlers": ["console"],
+        "handlers": ["console", "db"],
         "level": "INFO",
     },
 }

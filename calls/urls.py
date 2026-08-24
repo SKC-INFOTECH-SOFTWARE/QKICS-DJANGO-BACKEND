@@ -7,6 +7,7 @@ from .views import (
     MuteAllParticipantsView, RemoveParticipantView,
     LiveKitWebhookView,
     AdminCallRecordingListView, AdminCallRecordingSignedUrlView,
+    AdminCallRecordingStreamView,
 )
 
 urlpatterns = [
@@ -31,4 +32,6 @@ urlpatterns = [
          AdminCallRecordingListView.as_view(), name="admin-call-recordings"),
     path("admin/recordings/<uuid:recording_id>/signed-url/",
          AdminCallRecordingSignedUrlView.as_view(), name="admin-recording-signed-url"),
+    path("admin/recordings/<uuid:recording_id>/stream/",
+         AdminCallRecordingStreamView.as_view(), name="admin-recording-stream"),
 ]

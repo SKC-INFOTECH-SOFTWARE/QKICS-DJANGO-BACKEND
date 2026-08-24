@@ -42,7 +42,7 @@ keys:
 webhook:
   api_key: 18ca5e94d6f9d3af05323e9e0aa5a294
   urls:
-    - https://qkicsbackend.matchb.online/api/v1/calls/livekit/webhook/
+    - https://backend.qkics.com/api/v1/calls/livekit/webhook/
 
 room:
   auto_create: true

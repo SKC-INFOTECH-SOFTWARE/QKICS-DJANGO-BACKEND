@@ -58,7 +58,8 @@
       "PowerShell(python -c \"import os,sys; sys.path.insert\\(0,r'D:\\\\qkics'\\); os.environ['DJANGO_SETTINGS_MODULE']='rplatform.settings.development'; import django; django.setup\\(\\); import payments.views; import calls.services.livekit_service; import rplatform.locks; print\\('imports OK:', payments.views.claim_once.__name__, calls.services.livekit_service.distributed_lock.__name__\\)\")",
       "Bash(python -c \"from livekit.protocol import egress as ep; print\\([n for n in dir\\(ep\\) if 'Encod' in n]\\)\")",
       "Bash(python -c \"from livekit.protocol import egress as ep; o=ep.EncodingOptions\\(\\); print\\([f.name for f in o.DESCRIPTOR.fields]\\)\")",
-      "Bash(PROJECT_ENV=development venv/Scripts/python.exe manage.py check)"
+      "Bash(PROJECT_ENV=development venv/Scripts/python.exe manage.py check)",
+      "Bash(PROJECT_ENV=development python manage.py makemigrations adminpanel)"
     ]
   }
 }

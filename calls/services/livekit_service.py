@@ -1,17 +1,20 @@
 """
 calls/services/livekit_service.py
 
-LiveKit operations + Cloudinary upload for recordings.
+LiveKit operations + LOCAL recording storage.
 
 Flow:
   1. Booking confirmed → create_livekit_room() + start_room_recording()
-  2. LiveKit Egress saves MP4 to local /recordings/<room_id>.mp4
-  3. egress_ended webhook fires → upload_recording_to_cloudinary()
-  4. Local file deleted → Cloudinary URL stored in DB
-  5. Admin can access via cloudinary_secure_url (signed, time-limited)
-  6. After 7 days → cleanup task deletes from Cloudinary
+  2. LiveKit Egress saves MP4 to local /recordings/<room_id>.mp4 (Docker volume)
+  3. egress_ended webhook fires → finalize_recording() (file stays on the volume)
+  4. Admin previews/downloads via a short-lived signed token → Django streams the
+     local file (see calls/views.py AdminCallRecording* views)
+  5. After RETENTION_DAYS (15) → cleanup task deletes the local file
 
-pip install livekit-api cloudinary
+Recordings are NOT uploaded to Cloudinary anymore — the MP4 lives on the mounted
+`/recordings` volume, shared between the egress and backend containers.
+
+pip install livekit-api
 """
 import asyncio
 import logging
@@ -19,15 +22,16 @@ import os
 import threading
 from datetime import timedelta
 
-import cloudinary
-import cloudinary.uploader
-import cloudinary.utils
 from django.conf import settings
+from django.core import signing
 from django.utils import timezone
 
 from rplatform.locks import distributed_lock
 
 logger = logging.getLogger(__name__)
+
+# Salt for the short-lived signed tokens that authorise a recording download.
+_RECORDING_TOKEN_SALT = "calls.recording.download.v1"
 
 
 # ──────────────────────────────────────────────────────
@@ -40,15 +44,6 @@ def _lk():
         url=settings.LIVEKIT_URL,
         api_key=settings.LIVEKIT_API_KEY,
         api_secret=settings.LIVEKIT_API_SECRET,
-    )
-
-
-def _configure_cloudinary():
-    cloudinary.config(
-        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
-        api_key=settings.CLOUDINARY_API_KEY,
-        api_secret=settings.CLOUDINARY_API_SECRET,
-        secure=True,
     )
 
 
@@ -365,16 +360,18 @@ async def _start_egress_local(room_name: str, local_filepath: str):
                     filepath=local_filepath,
                 )
             ],
-            # ── Lightweight encode for 2-core VPS ────────────────────────────
-            # Default preset = 720p30, jo Chrome-composite ke saath 2-core par
-            # CPU choke kar deta hai. 480p @ 24fps se pixel*fps ~half ho jaata
-            # hai → kaafi CPU bachta hai, quality consultation ke liye theek.
-            # 4-core pe jaao to `advanced` hata do (default 720p30 wapas).
+            # ── Encode profile (4-core server) ───────────────────────────────
+            # Server ab 4-core hai + egress ko ~2 core budget diya gaya hai
+            # (livekit/egress.yaml room_composite_cpu_cost=2.0), to 720p @ 30fps
+            # comfortably chalega. File local volume par 15 din rehti hai, isliye
+            # bitrate ~2500 kbps par capped rakha hai (≈1.1 GB/ghanta) taaki disk
+            # controlled rahe. Agar wapas 2-core par jaao to 480p/24fps + cpu_cost
+            # 1.5 kar dena.
             advanced=ep.EncodingOptions(
-                width=854,
-                height=480,
-                framerate=24,
-                video_bitrate=1700,   # kbps
+                width=1280,
+                height=720,
+                framerate=30,
+                video_bitrate=2500,   # kbps
                 audio_bitrate=128,    # kbps
                 key_frame_interval=4,
             ),
@@ -447,18 +444,18 @@ def stop_room_recording(*, egress_id: str):
 
 
 # ──────────────────────────────────────────────────────
-# CLOUDINARY — UPLOAD
+# LOCAL RECORDING — FINALIZE (after egress ends)
 # ──────────────────────────────────────────────────────
 
-def upload_recording_to_cloudinary(*, recording) -> bool:
+def finalize_recording(*, recording, duration_seconds: int | None = None) -> bool:
     """
-    Upload local MP4 to Cloudinary.
-    Called from webhook handler after egress_ended.
+    Finalize a recording once egress has ended.
 
-    Cloudinary folder structure: qkics/recordings/<room_id>
-    Type: video (not image/raw) so Cloudinary can stream it
+    The MP4 already sits on the shared /recordings volume, so there is nothing to
+    upload — we just verify the file exists, record its size/duration and flip the
+    status to READY. The file stays on disk until the retention cleanup runs.
 
-    Returns True on success, False on failure.
+    Returns True on success, False if the file is missing.
     """
     from calls.models import CallRecording, RecordingEvent
 
@@ -476,117 +473,80 @@ def upload_recording_to_cloudinary(*, recording) -> bool:
         return False
 
     try:
-        _configure_cloudinary()
-
-        # Update status to UPLOADING
-        CallRecording.objects.filter(id=recording.id).update(
-            status=CallRecording.STATUS_UPLOADING,
-        )
-        _log_event(RecordingEvent.UPLOAD_STARTED, room=recording.room, recording=recording,
-                   detail=f"file={local_path}")
-
-        # Upload to Cloudinary
-        public_id = f"qkics/recordings/{recording.room_id}"
-
-        result = cloudinary.uploader.upload(
-            local_path,
-            resource_type="video",
-            public_id=public_id,
-            overwrite=True,
-            # Private so direct URL doesn't work without signature
-            type="private",
-            # Tags for easy management
-            tags=["call_recording", str(recording.room_id)],
-        )
-
         file_size = os.path.getsize(local_path)
 
-        # Update DB with Cloudinary info
         CallRecording.objects.filter(id=recording.id).update(
             status=CallRecording.STATUS_READY,
-            cloudinary_public_id=result["public_id"],
-            cloudinary_secure_url=result["secure_url"],
             file_size_bytes=file_size,
-            duration_seconds=int(result.get("duration", 0)) or None,
+            duration_seconds=duration_seconds or None,
         )
 
         logger.info(
-            "Cloudinary upload complete: recording=%s public_id=%s",
-            recording.id, result["public_id"],
+            "Recording finalized (local): recording=%s file=%s size=%s",
+            recording.id, local_path, file_size,
         )
         _log_event(RecordingEvent.UPLOAD_COMPLETE, room=recording.room, recording=recording,
-                   detail=f"public_id={result['public_id']} size={file_size}")
-
-        # Delete local file after successful upload
-        os.remove(local_path)
-        CallRecording.objects.filter(id=recording.id).update(
-            local_file_path="",
-        )
-        logger.info("Local file deleted: %s", local_path)
-
+                   detail=f"local file={local_path} size={file_size}")
         return True
 
     except Exception as e:
-        logger.error("Cloudinary upload failed [%s]: %s", recording.id, e)
+        logger.error("finalize_recording failed [%s]: %s", recording.id, e)
         CallRecording.objects.filter(id=recording.id).update(
             status=CallRecording.STATUS_FAILED,
             error_message=str(e)[:500],
         )
         _log_event(RecordingEvent.UPLOAD_FAILED, room=recording.room, recording=recording, detail=str(e))
-        _alert_recording_failed(recording.room, f"cloudinary upload failed: {e}")
+        _alert_recording_failed(recording.room, f"finalize failed: {e}")
         return False
 
 
 # ──────────────────────────────────────────────────────
-# CLOUDINARY — SIGNED URL FOR ADMIN DOWNLOAD
+# SIGNED DOWNLOAD TOKENS (admin preview/download of local files)
 # ──────────────────────────────────────────────────────
 
-def generate_cloudinary_signed_url(*, public_id: str, expires_in: int = 3600) -> str | None:
+def make_recording_download_token(*, recording_id, expires_in: int = 3600) -> str:
     """
-    Generate a time-limited signed URL for admin to download recording.
-    URL expires after expires_in seconds (default 1 hour).
-    File stays private — only this URL works temporarily.
+    Short-lived signed token authorising a download of one recording.
+
+    Embedded in the stream URL as `?token=` so a plain <video src> / new-tab
+    download works without an Authorization header, while the file stays private
+    (the stream view rejects anything without a valid, unexpired token).
     """
+    exp = int(timezone.now().timestamp()) + int(expires_in)
+    return signing.dumps(
+        {"rid": str(recording_id), "exp": exp},
+        salt=_RECORDING_TOKEN_SALT,
+    )
+
+
+def verify_recording_download_token(token: str) -> str | None:
+    """Return the recording id if the token is valid and unexpired, else None."""
     try:
-        _configure_cloudinary()
-
-        # Generate signed URL for private video
-        url = cloudinary.utils.cloudinary_url(
-            public_id,
-            resource_type="video",
-            type="private",
-            sign_url=True,
-            expires_at=int(timezone.now().timestamp()) + expires_in,
-            attachment=True,   # forces download instead of stream
-        )[0]
-
-        return url
-
-    except Exception as e:
-        logger.error("Cloudinary signed URL failed [%s]: %s", public_id, e)
+        data = signing.loads(token, salt=_RECORDING_TOKEN_SALT)
+    except signing.BadSignature:
         return None
+    if not isinstance(data, dict):
+        return None
+    if int(data.get("exp", 0)) < int(timezone.now().timestamp()):
+        return None
+    return data.get("rid")
 
 
-def delete_cloudinary_recording(*, public_id: str) -> bool:
+def delete_local_recording(*, recording) -> bool:
     """
-    Delete recording from Cloudinary.
-    Called by 7-day cleanup task.
+    Delete a recording's MP4 from the local /recordings volume.
+    Called by the retention cleanup task.
     """
+    local_path = recording.local_file_path
+    if not local_path:
+        return True
     try:
-        _configure_cloudinary()
-        result = cloudinary.uploader.destroy(
-            public_id,
-            resource_type="video",
-            type="private",
-        )
-        success = result.get("result") == "ok"
-        if success:
-            logger.info("Cloudinary deleted: %s", public_id)
-        else:
-            logger.warning("Cloudinary delete returned: %s for %s", result, public_id)
-        return success
+        if os.path.exists(local_path):
+            os.remove(local_path)
+            logger.info("Local recording deleted: %s", local_path)
+        return True
     except Exception as e:
-        logger.error("Cloudinary delete failed [%s]: %s", public_id, e)
+        logger.error("delete_local_recording failed [%s]: %s", recording.id, e)
         return False
 
 
@@ -598,7 +558,7 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
     """
     Handle LiveKit webhook events.
 
-    egress_ended  → upload local MP4 to Cloudinary (in background thread)
+    egress_ended  → finalize local MP4 (mark READY; file stays on the volume)
     room_finished → mark CallRoom ENDED, stop active recordings
     """
     from livekit import api as lkapi
@@ -649,21 +609,31 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
                 _log_event(RecordingEvent.EGRESS_ENDED, room=recording.room, recording=recording,
                            detail=f"egress={ei.egress_id}")
 
-                def upload_in_background():
-                    # Serialise concurrent deliveries: only one worker uploads.
-                    # ttl > worst-case upload time so a crash can't wedge it.
-                    with distributed_lock(f"egress:upload:{ei.egress_id}", ttl=900) as got:
+                # Duration comes from the egress file result (nanoseconds).
+                duration_seconds = None
+                try:
+                    results = list(getattr(ei, "file_results", None) or [])
+                    if not results and getattr(ei, "file", None):
+                        results = [ei.file]
+                    if results and getattr(results[0], "duration", 0):
+                        duration_seconds = int(results[0].duration / 1_000_000_000)
+                except Exception:
+                    duration_seconds = None
+
+                def finalize_in_background():
+                    # Serialise concurrent deliveries: only one worker finalizes.
+                    with distributed_lock(f"egress:finalize:{ei.egress_id}", ttl=120) as got:
                         if not got:
                             logger.info(
-                                "egress upload already in progress for %s — skipping duplicate",
+                                "egress finalize already in progress for %s — skipping duplicate",
                                 ei.egress_id,
                             )
                             return
-                        upload_recording_to_cloudinary(recording=recording)
+                        finalize_recording(recording=recording, duration_seconds=duration_seconds)
 
-                t = threading.Thread(target=upload_in_background, daemon=True)
+                t = threading.Thread(target=finalize_in_background, daemon=True)
                 t.start()
-                logger.info("Cloudinary upload started in background: egress=%s", ei.egress_id)
+                logger.info("Recording finalize started in background: egress=%s", ei.egress_id)
 
             except CallRecording.DoesNotExist:
                 logger.warning("No CallRecording found for egress_id=%s", ei.egress_id)

@@ -3,9 +3,9 @@ from calls.tasks import cleanup_expired_recordings
 
 
 class Command(BaseCommand):
-    help = "Delete call recordings from Cloudinary that are past their 7-day retention period"
+    help = "Delete call recordings from the local /recordings volume that are past their retention period (15 days)"
 
     def handle(self, *args, **options):
-        self.stdout.write("Starting Cloudinary recording cleanup...")
+        self.stdout.write("Starting local recording cleanup...")
         count = cleanup_expired_recordings()
-        self.stdout.write(self.style.SUCCESS(f"Done. {count} recordings deleted from Cloudinary."))
+        self.stdout.write(self.style.SUCCESS(f"Done. {count} recordings deleted from local storage."))

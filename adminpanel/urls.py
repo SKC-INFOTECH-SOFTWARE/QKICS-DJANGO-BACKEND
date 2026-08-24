@@ -26,6 +26,7 @@ from .views.companies import (
 )
 from .views.company_settings import CompanyPostSettingsView
 from .views.dashboard import AdminDashboardStatsView
+from .views.system_logs import AdminSystemLogListView, AdminSystemLogStatsView
 from .views.posts import (
     AdminPostListView,
     AdminPostModerateView,
@@ -38,6 +39,9 @@ from .views.posts import (
 urlpatterns = [
     # Admin dashboard metrics
     path("dashboard/stats/", AdminDashboardStatsView.as_view(), name="admin-dashboard-stats"),
+    # System logs (superadmin)
+    path("system-logs/", AdminSystemLogListView.as_view(), name="admin-system-logs"),
+    path("system-logs/stats/", AdminSystemLogStatsView.as_view(), name="admin-system-logs-stats"),
     # Admin user management
     path("users/", AdminUserListView.as_view(), name="admin-users"),
     # Admin expert application management

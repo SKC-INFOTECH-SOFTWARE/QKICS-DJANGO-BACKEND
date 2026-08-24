@@ -1,7 +1,8 @@
 """
 calls/tasks.py
 
-7-day recording cleanup — deletes from Cloudinary.
+Recording retention cleanup — deletes the local MP4 from the /recordings volume
+once it is past its RETENTION_DAYS (15) window.
 
 Cron (VPS mein add karo):
   0 2 * * * cd /opt/qkics && docker compose -f docker-compose.prod.yml exec -T django python manage.py cleanup_recordings >> /var/log/qkics_cleanup.log 2>&1
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 def cleanup_expired_recordings():
     from calls.models import CallRecording
+    from calls.services.livekit_service import delete_local_recording
 
     now     = timezone.now()
     expired = CallRecording.objects.filter(
@@ -28,17 +30,8 @@ def cleanup_expired_recordings():
     count = 0
     for rec in expired:
         try:
-            # Delete from Cloudinary
-            if rec.cloudinary_public_id:
-                from calls.services.livekit_service import delete_cloudinary_recording
-                delete_cloudinary_recording(public_id=rec.cloudinary_public_id)
-
-            # Delete local file if still exists (edge case — upload failed)
-            if rec.local_file_path:
-                import os
-                if os.path.exists(rec.local_file_path):
-                    os.remove(rec.local_file_path)
-                    logger.info("Local file deleted: %s", rec.local_file_path)
+            # Delete the local file from the /recordings volume.
+            delete_local_recording(recording=rec)
 
             # Mark deleted in DB
             rec.status                = CallRecording.STATUS_DELETED
@@ -53,7 +46,7 @@ def cleanup_expired_recordings():
             ])
 
             count += 1
-            logger.info("Recording %s deleted from Cloudinary", rec.id)
+            logger.info("Recording %s deleted from local volume", rec.id)
 
         except Exception as e:
             logger.error("Failed to delete recording %s: %s", rec.id, e)

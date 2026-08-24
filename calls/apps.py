@@ -17,11 +17,15 @@ class CallsConfig(AppConfig):
             return
 
         try:
-            from calls.services.auto_cut import get_scheduler, schedule_booking_expiry
+            from calls.services.auto_cut import (
+                get_scheduler, schedule_booking_expiry, schedule_system_log_trim,
+            )
             scheduler = get_scheduler()
             if scheduler.running:
                 logger.info("APScheduler running — auto-cut jobs active.")
             # Recurring sweep that frees slots held by abandoned checkouts.
             schedule_booking_expiry()
+            # Daily trim so the SystemLog table stays bounded (30-day retention).
+            schedule_system_log_trim()
         except Exception as e:
             logger.error("APScheduler init failed: %s", e)

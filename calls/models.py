@@ -111,9 +111,9 @@ class CallParticipant(models.Model):
 
 class CallRecording(models.Model):
     STATUS_RECORDING  = "RECORDING"   # egress chal raha hai, local file ban rahi hai
-    STATUS_UPLOADING  = "UPLOADING"   # Cloudinary par upload ho raha hai
-    STATUS_READY      = "READY"       # Cloudinary par available hai
-    STATUS_DELETED    = "DELETED"     # 7 din baad delete ho gaya
+    STATUS_UPLOADING  = "UPLOADING"   # (legacy) Cloudinary upload — ab use nahi hota
+    STATUS_READY      = "READY"       # local volume par MP4 available hai
+    STATUS_DELETED    = "DELETED"     # retention ke baad delete ho gaya
     STATUS_FAILED     = "FAILED"      # kuch error aaya
 
     STATUS_CHOICES = (
@@ -124,7 +124,9 @@ class CallRecording(models.Model):
         (STATUS_FAILED,     "Failed"),
     )
 
-    RETENTION_DAYS = 7
+    # Recordings ab local Docker volume (/recordings) par store hoti hain,
+    # Cloudinary par nahi. Retention window ke baad file delete ho jaati hai.
+    RETENTION_DAYS = 15
 
     id   = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     room = models.ForeignKey(CallRoom, on_delete=models.CASCADE, related_name="recordings")

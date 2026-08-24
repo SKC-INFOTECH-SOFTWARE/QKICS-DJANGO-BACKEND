@@ -44,10 +44,11 @@ services:
       - ./recordings:/recordings     # ← webhook reads MP4 from here to upload to Cloudinary
     restart: unless-stopped
     network_mode: host
+    # 4-core server: backend ko ~1.5 core do; egress ko 2 core alag se (neeche).
     deploy:
       resources:
         limits:
-          cpus: '0.60'
+          cpus: '1.5'
           memory: 4G
     depends_on:
       redis:
@@ -91,11 +92,18 @@ services:
     cap_add:
       - SYS_ADMIN          # Chrome sandbox ke liye zaruri
     shm_size: '1gb'        # Chrome needs shared memory
+    # 4-core server: egress ko 2 core do (cpu_cost=2.0 ke saath match — max 2
+    # concurrent recordings). RoomComposite = headless Chrome, CPU-heavy hai.
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3G
     environment:
       - EGRESS_CONFIG_FILE=/etc/egress/egress.yaml
     volumes:
       - ./livekit/egress.yaml:/etc/egress/egress.yaml:ro
-      - ./recordings:/recordings    # ← MP4 files yahan save hoti hain
+      - ./recordings:/recordings    # ← MP4 files yahan save + serve hoti hain (15 din)
     depends_on:
       livekit:
         condition: service_healthy

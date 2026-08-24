@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from ads.models import Advertisement
 from companies.models import Company, CompanyMember, CompanyPost
 from community.models import Post, Comment
+from adminpanel.models import SystemLog
 
 User = get_user_model()
 
@@ -175,3 +176,17 @@ class AdminCommentSerializer(serializers.ModelSerializer):
 
     def get_is_reply(self, obj):
         return obj.parent_id is not None
+
+
+class AdminSystemLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemLog
+        fields = [
+            "id",
+            "level",
+            "category",
+            "logger_name",
+            "message",
+            "detail",
+            "created_at",
+        ]

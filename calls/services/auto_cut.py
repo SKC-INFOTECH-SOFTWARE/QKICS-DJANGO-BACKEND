@@ -144,3 +144,42 @@ def _expire_stale_bookings_job():
         expire_stale_bookings()
     except Exception as e:
         logger.error("_expire_stale_bookings_job: %s", e)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Recurring trim: keep the SystemLog table bounded
+# ──────────────────────────────────────────────────────────────────────────
+
+def schedule_system_log_trim(*, hours: int = 24, retention_days: int = 30):
+    """Register a recurring job that deletes SystemLog rows older than retention."""
+    try:
+        scheduler = get_scheduler()
+        scheduler.add_job(
+            _trim_system_logs_job,
+            trigger="interval",
+            hours=hours,
+            id="trim_system_logs",
+            name="Trim old system logs",
+            args=[retention_days],
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=3600,
+        )
+        logger.info("System-log trim scheduled every %sh (retention %sd).", hours, retention_days)
+    except Exception as e:
+        logger.error("schedule_system_log_trim: %s", e)
+
+
+def _trim_system_logs_job(retention_days: int = 30):
+    try:
+        from django.utils import timezone
+        from datetime import timedelta
+        from adminpanel.models import SystemLog
+
+        cutoff = timezone.now() - timedelta(days=retention_days)
+        deleted, _ = SystemLog.objects.filter(created_at__lt=cutoff).delete()
+        if deleted:
+            logger.info("Trimmed %s old system-log rows (older than %sd).", deleted, retention_days)
+    except Exception as e:
+        logger.error("_trim_system_logs_job: %s", e)
