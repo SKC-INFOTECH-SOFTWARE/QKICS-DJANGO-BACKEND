@@ -101,6 +101,12 @@ class InitiatePaymentView(APIView):
                     {"message": f"Cannot pay for booking in {booking.status} state"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            if booking.is_free:
+                # Free sessions are confirmed without payment — never charge them.
+                return Response(
+                    {"message": "This is a free session; no payment is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             reference_id = booking.uuid
             amount = booking.price
         else:  # SUBSCRIPTION

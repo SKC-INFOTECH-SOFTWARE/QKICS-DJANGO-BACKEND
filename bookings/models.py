@@ -47,6 +47,14 @@ class ExpertSlot(models.Model):
         max_digits=10, decimal_places=2, default=Decimal("0.00")
     )
 
+    # ── Free sessions ──────────────────────────────────────────────
+    # When an expert marks a session type free, the price is 0 but the option
+    # is still bookable (price == 0 alone means "disabled"). Booking a free
+    # option skips payment entirely and confirms straight away.
+    is_chat_free = models.BooleanField(default=False)
+    is_video_call_free = models.BooleanField(default=False)
+    is_batch_free = models.BooleanField(default=False)
+
     # ── Batch (group video call) mode ──────────────────────────────
     # ONE_TO_ONE (default): existing behaviour — 1 booking, chat or video.
     # BATCH: video-only group call; up to `capacity` users book the same
@@ -108,8 +116,10 @@ class ExpertSlot(models.Model):
                 raise ValidationError(
                     f"Batch capacity must be between 2 and {self.MAX_BATCH_CAPACITY}."
                 )
-            if self.batch_price <= 0:
-                raise ValidationError("Batch slots require a batch_price greater than 0.")
+            if not self.is_batch_free and self.batch_price <= 0:
+                raise ValidationError(
+                    "Batch slots require a batch_price greater than 0 (or mark it free)."
+                )
 
     _ACTIVE_BOOKING_STATUSES = [
         "PENDING", "AWAITING_PAYMENT", "PAID", "CONFIRMED"
@@ -144,7 +154,8 @@ class ExpertSlot(models.Model):
             return False
         if not self._is_base_available():
             return False
-        if self.batch_price <= 0:
+        # A free batch (price 0 but is_batch_free) is still bookable.
+        if not (self.is_batch_free or self.batch_price > 0):
             return False
         return self.batch_seats_left() > 0
 
@@ -153,7 +164,7 @@ class ExpertSlot(models.Model):
             return False
         if not self._is_base_available():
             return False
-        if self.chat_price <= 0:
+        if not (self.is_chat_free or self.chat_price > 0):
             return False
         return not self._has_any_active_booking()
 
@@ -162,7 +173,7 @@ class ExpertSlot(models.Model):
             return False
         if not self._is_base_available():
             return False
-        if self.video_call_price <= 0:
+        if not (self.is_video_call_free or self.video_call_price > 0):
             return False
         return not self._has_any_active_booking()
 
@@ -409,6 +420,11 @@ class Booking(models.Model):
         self.expert_earning_amount = (self.price - self.platform_fee_amount).quantize(
             Decimal("0.01")
         )
+
+    @property
+    def is_free(self):
+        """A zero-price booking — skips the payment step and confirms directly."""
+        return self.price is None or self.price <= Decimal("0.00")
 
     def is_active(self):
         """Check if booking is in an active state"""

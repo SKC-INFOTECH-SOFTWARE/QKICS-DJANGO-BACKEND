@@ -23,6 +23,9 @@ class ExpertSlotSerializer(serializers.ModelSerializer):
             "duration_minutes",
             "chat_price",
             "video_call_price",
+            "is_chat_free",
+            "is_video_call_free",
+            "is_batch_free",
             "slot_mode",
             "capacity",
             "batch_price",
@@ -59,6 +62,9 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
             "duration_minutes",
             "chat_price",
             "video_call_price",
+            "is_chat_free",
+            "is_video_call_free",
+            "is_batch_free",
             "slot_mode",
             "capacity",
             "batch_price",
@@ -82,28 +88,44 @@ class ExpertSlotCreateSerializer(serializers.ModelSerializer):
         if slot_mode == ExpertSlot.MODE_BATCH:
             # Batch = group video call only, per-user price, no approval step.
             capacity = attrs.get("capacity", 0)
+            is_batch_free = attrs.get("is_batch_free", False)
             batch_price = attrs.get("batch_price", 0)
             if not (2 <= capacity <= ExpertSlot.MAX_BATCH_CAPACITY):
                 raise serializers.ValidationError(
                     {"capacity": f"Capacity must be between 2 and {ExpertSlot.MAX_BATCH_CAPACITY}."}
                 )
-            if batch_price <= 0:
+            if is_batch_free:
+                # Free group call: no charge.
+                attrs["batch_price"] = 0
+            elif batch_price <= 0:
                 raise serializers.ValidationError(
-                    {"batch_price": "Batch price (per user) must be greater than 0."}
+                    {"batch_price": "Batch price (per user) must be greater than 0, or mark it free."}
                 )
             # Batch slots don't use chat/video_call price and skip approval.
             attrs["chat_price"] = 0
             attrs["video_call_price"] = 0
+            attrs["is_chat_free"] = False
+            attrs["is_video_call_free"] = False
             attrs["requires_approval"] = False
         else:
-            # One-to-one: existing rules.
+            # One-to-one: chat and/or video, each independently priced or free.
             attrs["capacity"] = 1
             attrs["batch_price"] = 0
+            attrs["is_batch_free"] = False
+            is_chat_free = attrs.get("is_chat_free", False)
+            is_video_call_free = attrs.get("is_video_call_free", False)
+            # "Free" wins over any price entered — force the stored price to 0.
+            if is_chat_free:
+                attrs["chat_price"] = 0
+            if is_video_call_free:
+                attrs["video_call_price"] = 0
             chat_price = attrs.get("chat_price", 0)
             video_call_price = attrs.get("video_call_price", 0)
-            if chat_price <= 0 and video_call_price <= 0:
+            chat_enabled = is_chat_free or chat_price > 0
+            video_enabled = is_video_call_free or video_call_price > 0
+            if not chat_enabled and not video_enabled:
                 raise serializers.ValidationError(
-                    "At least one of chat_price or video_call_price must be greater than 0."
+                    "Enable at least one of Chat or Video Call (set a price or mark it free)."
                 )
 
         expert = self.context["request"].user
@@ -127,6 +149,8 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
             "end_datetime",
             "chat_price",
             "video_call_price",
+            "is_chat_free",
+            "is_video_call_free",
             "requires_approval",
             "status",
         ]
@@ -145,11 +169,22 @@ class ExpertSlotUpdateSerializer(serializers.ModelSerializer):
                 {"end_datetime": "End time must be after start time."}
             )
         if not instance.is_batch:
+            is_chat_free = attrs.get("is_chat_free", instance.is_chat_free)
+            is_video_call_free = attrs.get(
+                "is_video_call_free", instance.is_video_call_free
+            )
+            # "Free" wins over any price — force the stored price to 0.
+            if is_chat_free:
+                attrs["chat_price"] = 0
+            if is_video_call_free:
+                attrs["video_call_price"] = 0
             chat_price = attrs.get("chat_price", instance.chat_price)
             video_call_price = attrs.get("video_call_price", instance.video_call_price)
-            if chat_price <= 0 and video_call_price <= 0:
+            chat_enabled = is_chat_free or chat_price > 0
+            video_enabled = is_video_call_free or video_call_price > 0
+            if not chat_enabled and not video_enabled:
                 raise serializers.ValidationError(
-                    "At least one of chat_price or video_call_price must be greater than 0."
+                    "Enable at least one of Chat or Video Call (set a price or mark it free)."
                 )
         return attrs
 
@@ -266,11 +301,13 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             # Batch is group video call only; force the session type.
             attrs["session_type"] = Booking.SESSION_TYPE_VIDEO_CALL
         else:
-            if session_type == Booking.SESSION_TYPE_CHAT and slot.chat_price <= 0:
+            chat_enabled = slot.is_chat_free or slot.chat_price > 0
+            video_enabled = slot.is_video_call_free or slot.video_call_price > 0
+            if session_type == Booking.SESSION_TYPE_CHAT and not chat_enabled:
                 raise serializers.ValidationError(
                     "Chat session is not available for this slot."
                 )
-            if session_type == Booking.SESSION_TYPE_VIDEO_CALL and slot.video_call_price <= 0:
+            if session_type == Booking.SESSION_TYPE_VIDEO_CALL and not video_enabled:
                 raise serializers.ValidationError(
                     "Video call session is not available for this slot."
                 )
@@ -320,11 +357,18 @@ class BookingCreateSerializer(serializers.ModelSerializer):
                 else slot.video_call_price
             )
 
-        booking_status = (
-            Booking.STATUS_PENDING
-            if slot.requires_approval
-            else Booking.STATUS_AWAITING_PAYMENT
-        )
+        # A free (zero-price) session has no payment step. It still respects the
+        # expert's approval setting: no approval → confirm immediately; approval
+        # required → sit at PENDING and confirm on approval (see BookingApprovalView).
+        is_free = price is None or price <= 0
+
+        if slot.requires_approval:
+            booking_status = Booking.STATUS_PENDING
+        elif is_free:
+            booking_status = Booking.STATUS_PENDING  # confirmed just below
+        else:
+            booking_status = Booking.STATUS_AWAITING_PAYMENT
+
         booking = Booking(
             user=user,
             expert=slot.expert,
@@ -340,6 +384,14 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         )
         booking.compute_fee_snapshot()
         booking.save()
+
+        # Free + no approval → confirm now, skipping payment entirely. We're
+        # already inside this atomic block with the slot row locked.
+        if is_free and not slot.requires_approval:
+            from bookings.services.confirm_booking import confirm_free_booking
+
+            confirm_free_booking(booking=booking)
+
         return booking
 
 

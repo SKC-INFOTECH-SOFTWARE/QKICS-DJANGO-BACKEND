@@ -56,12 +56,17 @@ class ExpertSlotListView(generics.ListAPIView):
         one_to_one_available = (
             Q(slot_mode=ExpertSlot.MODE_ONE_TO_ONE)
             & Q(active_count=0)
-            & (Q(chat_price__gt=0) | Q(video_call_price__gt=0))
+            & (
+                Q(chat_price__gt=0)
+                | Q(video_call_price__gt=0)
+                | Q(is_chat_free=True)
+                | Q(is_video_call_free=True)
+            )
         )
         batch_available = (
             Q(slot_mode=ExpertSlot.MODE_BATCH)
             & Q(active_count__lt=F("capacity"))
-            & Q(batch_price__gt=0)
+            & (Q(batch_price__gt=0) | Q(is_batch_free=True))
         )
 
         return (
@@ -239,6 +244,16 @@ class BookingApprovalView(APIView):
         approve = serializer.validated_data["approve"]
 
         if approve:
+            # Free session → no payment step, confirm straight away.
+            if booking.is_free:
+                from bookings.services.confirm_booking import confirm_free_booking
+
+                confirm_free_booking(booking=booking)
+                return Response(
+                    {"message": "Booking approved and confirmed (free session)."},
+                    status=status.HTTP_200_OK,
+                )
+
             booking.status = Booking.STATUS_AWAITING_PAYMENT
             booking.expert_approved_at = timezone.now()
             booking.save(
