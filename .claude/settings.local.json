@@ -59,7 +59,13 @@
       "Bash(python -c \"from livekit.protocol import egress as ep; print\\([n for n in dir\\(ep\\) if 'Encod' in n]\\)\")",
       "Bash(python -c \"from livekit.protocol import egress as ep; o=ep.EncodingOptions\\(\\); print\\([f.name for f in o.DESCRIPTOR.fields]\\)\")",
       "Bash(PROJECT_ENV=development venv/Scripts/python.exe manage.py check)",
-      "Bash(PROJECT_ENV=development python manage.py makemigrations adminpanel)"
+      "Bash(PROJECT_ENV=development python manage.py makemigrations adminpanel)",
+      "Bash(DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test python \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/tag_probe.py\" 2>&1 | tail -40)",
+      "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test venv/Scripts/python.exe scratchpad_tag_probe.py 2>&1 | tail -40 || PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test venv/Scripts/python.exe \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/tag_probe.py\" 2>&1 | tail -40)",
+      "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test /d/qkics/venv/Scripts/python.exe \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/tag_probe.py\" 2>&1 | tail -40)",
+      "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test /d/qkics/venv/Scripts/python.exe \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/tag_orphan_probe.py\" 2>&1 | grep -v -E \"APScheduler|Scheduler|djangojob|schedule_|RuntimeWarning|warnings.warn|test database\" | tail -20)",
+      "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test /d/qkics/venv/Scripts/python.exe /d/qkics/manage.py check)",
+      "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test /d/qkics/venv/Scripts/python.exe \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/tag_defer_probe.py\" 2>&1 | grep -v -E \"APScheduler|Scheduler|djangojob|schedule_|RuntimeWarning|warnings.warn|test database\" | tail -20)"
     ]
   }
 }

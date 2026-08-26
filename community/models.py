@@ -36,6 +36,52 @@ class Tag(models.Model):
         super().save(*args, **kwargs)
 
 
+def get_or_create_tags(names, *, limit=5):
+    """Resolve a list of tag *names* to Tag rows, creating the ones that don't
+    exist yet — but only ever called at post save time.
+
+    Tags used to be created the moment a user typed one while composing (a live
+    POST /tags/), so abandoned drafts littered the table with unused tags. Now
+    the compose UI just collects names and the tag row is born here, when the
+    post is actually saved. Matching is case-insensitive so "React"/"react"
+    reuse one row; blanks/dupes are dropped and the count is capped at `limit`.
+    """
+    resolved = []
+    seen = set()
+    for raw in names or []:
+        name = (raw or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        tag = Tag.objects.filter(name__iexact=name).first()
+        if tag is None:
+            tag = Tag.objects.create(name=name[:80])
+        resolved.append(tag)
+        if len(resolved) >= limit:
+            break
+    return resolved
+
+
+def prune_orphan_tags(tag_ids):
+    """Delete any tag among `tag_ids` that is no longer attached to a post.
+
+    Deleting a post, or editing a post so a tag is de-selected, leaves the Tag
+    row behind (M2M rows go, the Tag stays). Those orphans pile up in the tag
+    picker and the "trending" list forever. Call this with the ids that were
+    just detached and it removes only the ones that now belong to zero posts —
+    a tag still used by another post is never touched (the `posts__isnull=True`
+    guard). Returns how many were deleted. Safe to call with an empty/None list.
+    """
+    if not tag_ids:
+        return 0
+    orphans = Tag.objects.filter(id__in=list(tag_ids), posts__isnull=True)
+    deleted, _ = orphans.delete()
+    return deleted
+
+
 # ---------------------------
 # POST MODEL
 # ---------------------------

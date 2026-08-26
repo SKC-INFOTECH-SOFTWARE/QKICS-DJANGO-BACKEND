@@ -14,7 +14,7 @@ from django.db.models.expressions import RawSQL
 from django.utils import timezone
 from datetime import datetime, timedelta
 
-from .models import Post, Comment, Like, Tag, PostMedia
+from .models import Post, Comment, Like, Tag, PostMedia, prune_orphan_tags
 from .serializers import (
     PostSerializer,
     PostCreateSerializer,
@@ -316,7 +316,11 @@ class PostDetailView(APIView):
         if post.author != request.user:
             return Response({"error": "Not authorized"}, status=403)
 
+        # Remember this post's tags before it goes, then drop any that are left
+        # attached to nothing — otherwise deleted posts leave dead tags behind.
+        tag_ids = list(post.tags.values_list("id", flat=True))
         post.delete()
+        prune_orphan_tags(tag_ids)
         return Response(status=204)
 
 

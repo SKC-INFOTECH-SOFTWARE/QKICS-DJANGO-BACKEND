@@ -1,7 +1,14 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from .models import Post, Comment, Tag, PostMedia
+from .models import (
+    Post,
+    Comment,
+    Tag,
+    PostMedia,
+    prune_orphan_tags,
+    get_or_create_tags,
+)
 from subscriptions.services.access import is_user_premium_request  #  (subscription)
 from django.db.models import Max
 import mimetypes
@@ -367,6 +374,13 @@ class PostCreateSerializer(serializers.ModelSerializer):
     media_files = serializers.ListField(
         child=serializers.FileField(), write_only=True, required=False
     )
+    # Tags arrive as NAMES now (not ids) so nothing is created until the post is
+    # saved — see get_or_create_tags(). Kept write-only; reads use TagSerializer.
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=80, allow_blank=True),
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = Post
@@ -397,13 +411,13 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         media_files = validated_data.pop("media_files", [])
-        tags = validated_data.pop("tags", [])
+        tag_names = validated_data.pop("tags", [])
 
         with transaction.atomic():
             post = Post.objects.create(**validated_data)
 
-            if tags:
-                post.tags.set(tags)
+            if tag_names:
+                post.tags.set(get_or_create_tags(tag_names))
 
             for index, file in enumerate(media_files):
                 PostMedia.objects.create(post=post, file=file, order=index)
@@ -438,6 +452,12 @@ class PostUpdateSerializer(serializers.ModelSerializer):
     )
     remove_media_ids = serializers.JSONField(required=False)
     reorder_media = serializers.JSONField(required=False)
+    # Same as create: tags come in as NAMES, resolved/created only on save.
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=80, allow_blank=True),
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = Post
@@ -490,7 +510,7 @@ class PostUpdateSerializer(serializers.ModelSerializer):
         add_media = validated_data.pop("add_media", [])
         remove_ids = validated_data.pop("remove_media_ids", [])
         reorder_data = validated_data.pop("reorder_media", [])
-        tags = validated_data.pop("tags", None)
+        tag_names = validated_data.pop("tags", None)
 
         with transaction.atomic():
 
@@ -500,8 +520,15 @@ class PostUpdateSerializer(serializers.ModelSerializer):
 
             instance.save()
 
-            if tags is not None:
-                instance.tags.set(tags)
+            if tag_names is not None:
+                # Resolve names → Tag rows (creating new ones only now), swap the
+                # set, then clean up any tag this post just dropped that no longer
+                # belongs to any post (keeps the picker tidy).
+                old_tag_ids = set(instance.tags.values_list("id", flat=True))
+                resolved = get_or_create_tags(tag_names)
+                instance.tags.set(resolved)
+                removed_ids = old_tag_ids - {t.pk for t in resolved}
+                prune_orphan_tags(removed_ids)
 
             # 🔹 Remove selected media
             if remove_ids:
