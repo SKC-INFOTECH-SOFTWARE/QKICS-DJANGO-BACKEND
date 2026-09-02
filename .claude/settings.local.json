@@ -67,7 +67,9 @@
       "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test /d/qkics/venv/Scripts/python.exe /d/qkics/manage.py check)",
       "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test /d/qkics/venv/Scripts/python.exe \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/tag_defer_probe.py\" 2>&1 | grep -v -E \"APScheduler|Scheduler|djangojob|schedule_|RuntimeWarning|warnings.warn|test database\" | tail -20)",
       "Bash(/d/qkics/venv/Scripts/python.exe manage.py makemigrations bookings)",
-      "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test /d/qkics/venv/Scripts/python.exe \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/free_slot_probe.py\" 2>&1 | grep -v -E \"APScheduler|Scheduler|djangojob|schedule_|RuntimeWarning|warnings.warn|test database|Accessing the database\" | tail -30)"
+      "Bash(PYTHONPATH=/d/qkics DJANGO_SETTINGS_MODULE=rplatform.settings._sqlite_test /d/qkics/venv/Scripts/python.exe \"C:/Users/CITY/AppData/Local/Temp/claude/D--qkics/a000d08a-7151-4324-8b02-97cd70b3bc04/scratchpad/free_slot_probe.py\" 2>&1 | grep -v -E \"APScheduler|Scheduler|djangojob|schedule_|RuntimeWarning|warnings.warn|test database|Accessing the database\" | tail -30)",
+      "Bash(./venv/Scripts/python.exe manage.py makemigrations users)",
+      "Bash(./venv/Scripts/python.exe manage.py check)"
     ]
   }
 }

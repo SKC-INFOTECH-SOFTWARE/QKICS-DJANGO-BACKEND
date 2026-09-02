@@ -15,6 +15,11 @@ from .views import (
     AdminCreateUserAPIView,
     UnifiedPublicProfileAPIView,
     UserSearchAPIView,
+    RegisterSendOTPAPIView,
+    RegisterVerifyOTPAPIView,
+    ForgotPasswordAPIView,
+    ResetPasswordVerifyAPIView,
+    ResetPasswordAPIView,
 )
 
 urlpatterns = [
@@ -22,6 +27,15 @@ urlpatterns = [
     path("register/", RegisterAPIView.as_view(), name="register"),
     path("login/", LoginAPIView.as_view(), name="login"),
     path("token/refresh/", TokenRefreshAPIView.as_view(), name="token_refresh"),
+
+    # Email OTP — registration verification
+    path("register/send-otp/", RegisterSendOTPAPIView.as_view(), name="register-send-otp"),
+    path("register/verify-otp/", RegisterVerifyOTPAPIView.as_view(), name="register-verify-otp"),
+
+    # Email OTP — forgot / reset password
+    path("password/forgot/", ForgotPasswordAPIView.as_view(), name="password-forgot"),
+    path("password/verify-otp/", ResetPasswordVerifyAPIView.as_view(), name="password-verify-otp"),
+    path("password/reset/", ResetPasswordAPIView.as_view(), name="password-reset"),
     
     # Public Profile (Unified)
     path("profiles/<str:username>/", UnifiedPublicProfileAPIView.as_view(), name="public-profile",),

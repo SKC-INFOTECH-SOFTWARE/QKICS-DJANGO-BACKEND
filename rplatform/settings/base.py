@@ -293,3 +293,32 @@ PAYU_MODE = config("PAYU_MODE", default="test")
 PAYU_BASE_URL = (
     "https://secure.payu.in" if PAYU_MODE == "prod" else "https://test.payu.in"
 )
+
+# ==================================================
+# EMAIL (shared defaults; production.py overrides the backend to SMTP)
+# ==================================================
+# Dev defaults to the console backend so OTP / welcome mails print to the
+# terminal without real SMTP. Prod sets EMAIL_BACKEND = smtp in production.py.
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="Qkics <no-reply@qkics.com>")
+
+# ==================================================
+# EMAIL OTP (registration verification + password reset)
+# ==================================================
+OTP_LENGTH = config("OTP_LENGTH", default=6, cast=int)
+OTP_EXP_MINUTES = config("OTP_EXP_MINUTES", default=10, cast=int)
+OTP_MAX_ATTEMPTS = config("OTP_MAX_ATTEMPTS", default=5, cast=int)
+OTP_RESEND_COOLDOWN_SECONDS = config("OTP_RESEND_COOLDOWN_SECONDS", default=60, cast=int)
+OTP_MAX_PER_HOUR = config("OTP_MAX_PER_HOUR", default=5, cast=int)
+# How long a verified registration OTP stays valid to actually create the
+# account (verify-otp -> register window).
+OTP_VERIFIED_WINDOW_MINUTES = config(
+    "OTP_VERIFIED_WINDOW_MINUTES", default=15, cast=int
+)

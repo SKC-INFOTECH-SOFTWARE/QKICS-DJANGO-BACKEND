@@ -1,10 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import RegexValidator
+from django.utils import timezone
 from PIL import Image
 from io import BytesIO
 from django.core.files.base import ContentFile
 import uuid
+import secrets
+from datetime import timedelta
 from django.conf import settings
 from django.core.files.storage import default_storage
 
@@ -107,3 +111,74 @@ class User(AbstractUser):
         self.profile_picture = ContentFile(buffer.getvalue(), name=filename)
 
         super().save(*args, **kwargs)
+
+
+class EmailOTP(models.Model):
+    """
+    One-time codes emailed for two purposes:
+      - `register`: verify an email BEFORE the account is created.
+      - `reset`:    verify ownership before resetting a forgotten password.
+
+    The plaintext code is NEVER stored — only a password-hashed digest. A row
+    is consumed (`is_used=True`) once it fulfils its purpose (account created /
+    password reset). For registration the code is first marked verified
+    (`verified_at`), which lets `RegisterAPIView` trust the email within
+    OTP_VERIFIED_WINDOW_MINUTES, then consumed when the account is created.
+    """
+
+    PURPOSE_REGISTER = "register"
+    PURPOSE_RESET = "reset"
+    PURPOSE_CHOICES = [
+        (PURPOSE_REGISTER, "Email Verification"),
+        (PURPOSE_RESET, "Password Reset"),
+    ]
+
+    email = models.EmailField(db_index=True)
+    code_hash = models.CharField(max_length=128)
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["email", "purpose", "is_used"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"OTP({self.purpose}) for {self.email}"
+
+    # ---- lifecycle helpers -------------------------------------------------
+    @staticmethod
+    def generate_code():
+        """Return a fresh zero-padded numeric OTP of settings.OTP_LENGTH digits."""
+        length = getattr(settings, "OTP_LENGTH", 6)
+        upper = 10 ** length
+        return str(secrets.randbelow(upper)).zfill(length)
+
+    @classmethod
+    def issue(cls, *, email, purpose):
+        """
+        Create + persist a new OTP for (email, purpose) and return
+        (instance, plaintext_code). The caller emails the plaintext code; the
+        DB keeps only the hash.
+        """
+        code = cls.generate_code()
+        exp_minutes = getattr(settings, "OTP_EXP_MINUTES", 10)
+        otp = cls.objects.create(
+            email=email.strip().lower(),
+            code_hash=make_password(code),
+            purpose=purpose,
+            expires_at=timezone.now() + timedelta(minutes=exp_minutes),
+        )
+        return otp, code
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    def check_code(self, code):
+        return check_password((code or "").strip(), self.code_hash)

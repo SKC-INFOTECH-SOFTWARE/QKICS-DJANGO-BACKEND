@@ -15,8 +15,22 @@ from .serializers import (
     UserUpdateSerializer,
     PasswordChangeSerializer,
     LogoutSerializer,
+    RegisterSendOTPSerializer,
+    RegisterVerifyOTPSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordVerifySerializer,
+    ResetPasswordSerializer,
 )
 from users.pagination import UserSearchCursorPagination
+from users.models import EmailOTP
+from users.services.otp import (
+    issue_otp,
+    verify_otp,
+    registration_email_verified,
+    consume_verified_registration,
+    OTPError,
+)
+from users.services.email import send_welcome_email
 from notifications.services.events import notify_welcome_user
 
 # Public Profile access includes ---------------------------------------
@@ -41,8 +55,21 @@ class RegisterAPIView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
+            email = (serializer.validated_data.get("email") or "").strip().lower()
+
+            # Gate: the email must have been OTP-verified first.
+            if not registration_email_verified(email):
+                return Response(
+                    {"email": "Please verify your email with the OTP first."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             user = serializer.save()
-            notify_welcome_user(user)
+            # Burn the verification OTP so it can't be reused.
+            consume_verified_registration(email)
+
+            notify_welcome_user(user)     # IN_APP + PUSH (external service)
+            send_welcome_email(user)      # real "successfully registered" email
             return Response(
                 {
                     "message": "User registered successfully.",
@@ -53,6 +80,139 @@ class RegisterAPIView(APIView):
                 status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ────────────────────── REGISTER: SEND EMAIL OTP ──────────────────────
+class RegisterSendOTPAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterSendOTPSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+        try:
+            issue_otp(email=email, purpose=EmailOTP.PURPOSE_REGISTER)
+        except OTPError as e:
+            return Response({"error": e.message, "code": e.code}, status=429)
+
+        return Response(
+            {"message": "Verification code sent to your email."},
+            status=status.HTTP_200_OK,
+        )
+
+
+# ────────────────────── REGISTER: VERIFY EMAIL OTP ──────────────────────
+class RegisterVerifyOTPAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterVerifyOTPSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+        code = serializer.validated_data["code"]
+        try:
+            verify_otp(
+                email=email,
+                code=code,
+                purpose=EmailOTP.PURPOSE_REGISTER,
+                mark_verified=True,
+            )
+        except OTPError as e:
+            return Response({"error": e.message, "code": e.code}, status=400)
+
+        return Response(
+            {"message": "Email verified. You can now complete registration.", "verified": True},
+            status=status.HTTP_200_OK,
+        )
+
+
+# ────────────────────── FORGOT PASSWORD: SEND OTP ──────────────────────
+class ForgotPasswordAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+        # Only send if a user actually exists — but ALWAYS return the same
+        # generic response to avoid leaking which emails are registered.
+        if User.objects.filter(email__iexact=email).exists():
+            try:
+                issue_otp(email=email, purpose=EmailOTP.PURPOSE_RESET)
+            except OTPError:
+                # Rate-limited: still respond generically.
+                pass
+
+        return Response(
+            {"message": "If that email is registered, a reset code has been sent."},
+            status=status.HTTP_200_OK,
+        )
+
+
+# ────────────────────── RESET PASSWORD: VERIFY OTP (optional) ──────────────────────
+class ResetPasswordVerifyAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordVerifySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+        code = serializer.validated_data["code"]
+        try:
+            # Peek only — do NOT consume; the reset call re-checks the code.
+            verify_otp(email=email, code=code, purpose=EmailOTP.PURPOSE_RESET)
+        except OTPError as e:
+            return Response({"error": e.message, "code": e.code}, status=400)
+
+        return Response({"valid": True}, status=status.HTTP_200_OK)
+
+
+# ────────────────────── RESET PASSWORD ──────────────────────
+class ResetPasswordAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+        code = serializer.validated_data["code"]
+        new_password = serializer.validated_data["new_password"]
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            # Same generic wording as forgot; don't leak existence.
+            return Response(
+                {"error": "Invalid or expired code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            verify_otp(
+                email=email,
+                code=code,
+                purpose=EmailOTP.PURPOSE_RESET,
+                consume=True,
+            )
+        except OTPError as e:
+            return Response({"error": e.message, "code": e.code}, status=400)
+
+        user.set_password(new_password)
+        user.save()
+        notify_password_changed(user)
+        return Response(
+            {"message": "Password reset successful. You can now log in."},
+            status=status.HTTP_200_OK,
+        )
 
 
 # ────────────────────── LOGIN API ──────────────────────

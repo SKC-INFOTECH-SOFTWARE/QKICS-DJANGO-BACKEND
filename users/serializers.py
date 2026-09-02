@@ -168,3 +168,56 @@ class PasswordChangeSerializer(serializers.Serializer):
 
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+
+
+# -------------------------------------
+# EMAIL OTP SERIALIZERS
+# -------------------------------------
+class RegisterSendOTPSerializer(serializers.Serializer):
+    """Request an email-verification OTP before creating an account."""
+
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        value = value.strip().lower()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("This email is already registered.")
+        return value
+
+
+class RegisterVerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=12)
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class ResetPasswordVerifySerializer(serializers.Serializer):
+    """Optional pre-check of a reset OTP (does not consume it)."""
+
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=12)
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=12)
+    new_password = serializers.CharField(write_only=True)
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value
