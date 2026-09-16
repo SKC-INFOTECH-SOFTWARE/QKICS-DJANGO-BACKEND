@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 import uuid
-import mimetypes
 from PIL import Image
 
 User = get_user_model()
@@ -85,6 +84,11 @@ class Advertisement(models.Model):
     def __str__(self):
         return f"{self.title} ({self.media_type})"
 
+    # Video is validated by extension (we can't cheaply sniff container formats);
+    # images are validated by actually opening them with Pillow, so formats that
+    # ``mimetypes`` doesn't know on the prod image (webp/jfif on py3.11) still work.
+    ALLOWED_VIDEO_EXTENSIONS = {"mp4", "webm", "mov", "avi"}
+
     def clean(self):
         if not self.file:
             raise ValidationError("File is required.")
@@ -94,41 +98,33 @@ class Advertisement(models.Model):
         if self.file.size > max_size:
             raise ValidationError("File size exceeds 50MB limit.")
 
-        mime_type, _ = mimetypes.guess_type(self.file.name)
+        ext = self.file.name.rsplit(".", 1)[-1].lower() if "." in self.file.name else ""
+        content_type = getattr(getattr(self.file, "file", None), "content_type", "") or ""
 
-        if not mime_type:
-            raise ValidationError("Could not determine file type.")
-
-        # IMAGE VALIDATION
-        if mime_type.startswith("image"):
+        if ext in self.ALLOWED_VIDEO_EXTENSIONS or content_type.startswith("video/"):
+            if ext not in self.ALLOWED_VIDEO_EXTENSIONS:
+                raise ValidationError(
+                    "Unsupported video format. Allowed: "
+                    + ", ".join(sorted(self.ALLOWED_VIDEO_EXTENSIONS))
+                    + "."
+                )
+            self.media_type = self.VIDEO
+        else:
+            # IMAGE VALIDATION — let Pillow decide whether it's a real image
             try:
                 self.file.seek(0)
                 img = Image.open(self.file)
                 img.verify()
                 self.file.seek(0)
                 self.media_type = self.IMAGE
-            except (OSError, SyntaxError, ValueError):
-                raise ValidationError("Invalid image file.")
-
-        # VIDEO VALIDATION
-        elif mime_type.startswith("video"):
-            allowed_video_types = [
-                "video/mp4",
-                "video/webm",
-                "video/quicktime",
-                "video/x-msvideo",
-            ]
-
-            if mime_type not in allowed_video_types:
-                raise ValidationError("Unsupported video format.")
-
-            self.media_type = self.VIDEO
-
-        else:
-            raise ValidationError("Only image and video files are allowed.")
+            except (OSError, SyntaxError, ValueError, Image.DecompressionBombError):
+                raise ValidationError(
+                    "Only image (jpg, png, gif, webp) and video (mp4, webm, mov, avi) "
+                    "files are allowed."
+                )
 
         # Date validation
-        if self.start_datetime >= self.end_datetime:
+        if self.start_datetime and self.end_datetime and self.start_datetime >= self.end_datetime:
             raise ValidationError("End datetime must be after start datetime.")
 
     def save(self, *args, **kwargs):

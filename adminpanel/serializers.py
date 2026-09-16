@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 from ads.models import Advertisement
 from companies.models import Company, CompanyMember, CompanyPost
 from community.models import Post, Comment
@@ -22,6 +23,19 @@ class AdminAdvertisementSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+def _raise_as_drf_error(exc):
+    """Advertisement.save() runs full_clean(); re-raise its Django ValidationError
+    as a DRF one so the client gets a 400 with the message instead of a 500."""
+    if hasattr(exc, "message_dict"):
+        detail = {
+            ("non_field_errors" if k == "__all__" else k): v
+            for k, v in exc.message_dict.items()
+        }
+    else:
+        detail = {"non_field_errors": exc.messages}
+    raise serializers.ValidationError(detail)
+
+
 class AdminAdvertisementCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Advertisement
@@ -36,7 +50,10 @@ class AdminAdvertisementCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context["request"]
         validated_data["created_by"] = request.user
-        return super().create(validated_data)
+        try:
+            return super().create(validated_data)
+        except DjangoValidationError as exc:
+            _raise_as_drf_error(exc)
 
 
 class AdminAdvertisementUpdateSerializer(serializers.ModelSerializer):
@@ -49,6 +66,12 @@ class AdminAdvertisementUpdateSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def update(self, instance, validated_data):
+        try:
+            return super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            _raise_as_drf_error(exc)
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
