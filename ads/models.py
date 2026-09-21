@@ -89,9 +89,24 @@ class Advertisement(models.Model):
     # ``mimetypes`` doesn't know on the prod image (webp/jfif on py3.11) still work.
     ALLOWED_VIDEO_EXTENSIONS = {"mp4", "webm", "mov", "avi"}
 
+    # The in-feed card clamps the description to a couple of lines with a
+    # "See more" toggle, so cap it at 100 words to keep cards scannable.
+    DESCRIPTION_MAX_WORDS = 100
+
     def clean(self):
         if not self.file:
             raise ValidationError("File is required.")
+
+        word_count = len((self.description or "").split())
+        if word_count > self.DESCRIPTION_MAX_WORDS:
+            raise ValidationError(
+                {
+                    "description": (
+                        f"Description must be at most {self.DESCRIPTION_MAX_WORDS} words "
+                        f"(currently {word_count})."
+                    )
+                }
+            )
 
         # Max file size: 50MB
         max_size = 50 * 1024 * 1024
