@@ -4,7 +4,6 @@ from .models import (
     CallRoom, CallParticipant, CallRecording, CallMessage, CallNote, RecordingEvent,
 )
 
-
 class CallParticipantInline(admin.TabularInline):
     model           = CallParticipant
     extra           = 0
@@ -76,7 +75,7 @@ class CallRecordingAdmin(admin.ModelAdmin):
         return f"{obj.file_size_bytes / 1024 / 1024:.1f} MB" if obj.file_size_bytes else "—"
 
     def has_delete_permission(self, request, obj=None):
-        return False  # Use cleanup_recordings command
+        return False 
 
 
 @admin.register(RecordingEvent)

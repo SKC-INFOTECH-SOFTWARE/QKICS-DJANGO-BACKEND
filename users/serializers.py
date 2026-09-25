@@ -66,6 +66,16 @@ class LoginSerializer(serializers.Serializer):
 
         user = authenticate(username=username, password=password)
         if not user:
+            # A blocked account has is_active=False, so authenticate() refuses it
+            # before we can explain why. Give the real reason — but only once the
+            # password checks out, so account state never leaks to a stranger.
+            blocked = User.objects.filter(
+                username=username, is_active=False
+            ).first()
+            if blocked and blocked.check_password(password):
+                raise serializers.ValidationError(
+                    f"Account is {blocked.status}. Contact admin."
+                )
             raise serializers.ValidationError("Invalid username or password.")
 
         # Check business-level account status

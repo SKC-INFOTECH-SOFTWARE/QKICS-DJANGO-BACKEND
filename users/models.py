@@ -37,7 +37,21 @@ class User(AbstractUser):
     user_type = models.CharField(max_length=20, choices=USER_TYPES, default="normal")
 
     # ACCOUNT STATUS
+    # `status` is the business-level state an admin controls. It is kept in sync
+    # with Django's `is_active` (see adminpanel.views.users) so SimpleJWT rejects
+    # an already-issued access token the moment an account is blocked.
     status = models.CharField(max_length=20, choices=STATUS_TYPES, default="active")
+
+    # Audit trail for admin status changes (who/when/why)
+    status_reason = models.CharField(max_length=255, blank=True)
+    status_changed_at = models.DateTimeField(null=True, blank=True)
+    status_changed_by = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="status_changes_made",
+    )
 
     # OPTIONAL PHONE NUMBER
     phone = models.CharField(

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views.users import AdminUserListView
+from .views.users import AdminUserListView, AdminUserStatusUpdateView
 from .views.experts import (
     AdminExpertApplicationListView,
     AdminExpertApplicationUpdateView,
@@ -44,6 +44,11 @@ urlpatterns = [
     path("system-logs/stats/", AdminSystemLogStatsView.as_view(), name="admin-system-logs-stats"),
     # Admin user management
     path("users/", AdminUserListView.as_view(), name="admin-users"),
+    path(
+        "users/<int:id>/status/",
+        AdminUserStatusUpdateView.as_view(),
+        name="admin-user-status",
+    ),
     # Admin expert application management
     path(
         "experts/applications/",

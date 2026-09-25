@@ -15,6 +15,22 @@ class AdminFullUserSerializer(serializers.ModelSerializer):
         exclude = ["password"]
 
 
+class AdminUserStatusSerializer(serializers.Serializer):
+    """Payload for blocking / unblocking a user account."""
+
+    status = serializers.ChoiceField(choices=[c[0] for c in User.STATUS_TYPES])
+    reason = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, default=""
+    )
+
+    def validate(self, attrs):
+        if attrs["status"] != "active" and not attrs.get("reason", "").strip():
+            raise serializers.ValidationError(
+                {"reason": "A reason is required when blocking or deactivating a user."}
+            )
+        return attrs
+
+
 class AdminAdvertisementSerializer(serializers.ModelSerializer):
     created_by = serializers.StringRelatedField()
 
