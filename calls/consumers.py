@@ -16,11 +16,26 @@ class CallChatConsumer(AsyncWebsocketConsumer):
     """
 
     async def connect(self):
-        if not self.scope["user"].is_authenticated:
+        user = self.scope["user"]
+        guest = self.scope.get("meeting_guest")
+
+        # Either a signed-in user or a meeting guest may open the socket.
+        if not user.is_authenticated and guest is None:
             await self.close(code=4001)
             return
 
-        self.user       = self.scope["user"]
+        self.user  = user if user.is_authenticated else None
+        self.guest = guest if self.user is None else None
+
+        # `identity` matches the LiveKit participant identity, so host controls
+        # and chat refer to the same person by the same id.
+        if self.user is not None:
+            self.identity = str(self.user.id)
+            self.display_name = self.user.get_full_name() or self.user.username
+        else:
+            self.identity = self.guest.livekit_identity
+            self.display_name = self.guest.display_name
+
         self.room_id    = self.scope["url_route"]["kwargs"]["room_id"]
         self.group_name = f"callchat_{self.room_id}"
         self.is_host    = False
@@ -65,8 +80,8 @@ class CallChatConsumer(AsyncWebsocketConsumer):
                 "type":            "broadcast_message",
                 "message_id":      message.id,
                 "text":            text,
-                "sender_id":       self.user.id,
-                "sender_username": self.user.username,
+                "sender_id":       self.identity,
+                "sender_username": self.display_name,
                 "timestamp":       message.created_at.isoformat(),
             })
 
@@ -80,8 +95,8 @@ class CallChatConsumer(AsyncWebsocketConsumer):
                 "file_name":       data.get("file_name"),
                 "file_url":        data.get("file_url"),
                 "file_size_bytes": data.get("file_size_bytes"),
-                "sender_id":       self.user.id,
-                "sender_username": self.user.username,
+                "sender_id":       self.identity,
+                "sender_username": self.display_name,
             })
 
         elif msg_type == "typing":
@@ -89,7 +104,7 @@ class CallChatConsumer(AsyncWebsocketConsumer):
                 return
             await self.channel_layer.group_send(self.group_name, {
                 "type":      "broadcast_typing",
-                "user_id":   self.user.id,
+                "user_id":   self.identity,
                 "is_typing": data.get("is_typing", False),
             })
 
@@ -99,12 +114,9 @@ class CallChatConsumer(AsyncWebsocketConsumer):
                 return
             target = data.get("user_id")
             blocked = bool(data.get("blocked", True))
-            if target is None or str(target) == str(self.user.id):
+            if target is None or str(target) == self.identity:
                 return
-            try:
-                ids = await self._set_block(int(target), blocked)
-            except (TypeError, ValueError):
-                return
+            ids = await self._set_block(str(target), blocked)
             await self.channel_layer.group_send(self.group_name, {
                 "type":             "chat_block_changed",
                 "user_id":          str(target),
@@ -136,7 +148,7 @@ class CallChatConsumer(AsyncWebsocketConsumer):
         }))
 
     async def broadcast_typing(self, event):
-        if event["user_id"] != self.user.id:
+        if str(event["user_id"]) != self.identity:
             await self.send(text_data=json.dumps({
                 "type":      "typing",
                 "user_id":   event["user_id"],
@@ -145,7 +157,7 @@ class CallChatConsumer(AsyncWebsocketConsumer):
 
     async def chat_block_changed(self, event):
         # Keep this connection's own block flag authoritative.
-        if event["user_id"] == str(self.user.id):
+        if str(event["user_id"]) == self.identity:
             self.is_blocked = event["blocked"]
         await self.send(text_data=json.dumps({
             "type":             "chat_block_changed",
@@ -173,6 +185,29 @@ class CallChatConsumer(AsyncWebsocketConsumer):
         if room.status == CallRoom.STATUS_ENDED:
             return False
 
+        if getattr(room, "meeting", None) is not None:  # meeting-link room
+            if self.guest is not None:
+                # A guest session is bound to one meeting; it may only open
+                # that meeting's chat.
+                from meetings.services.meeting_service import can_guest_join
+                ok = self.guest.meeting_id == room.meeting.id
+                if ok:
+                    ok = can_guest_join(room.meeting)[0]
+            else:
+                from meetings.services.meeting_service import can_user_join
+                ok, _ = can_user_join(room.meeting, self.user)
+            if not ok:
+                return False
+            self.is_host = self.user is not None and room.advisor_id == self.user.id
+            self.blocked_ids = {str(i) for i in (room.chat_blocked_user_ids or [])}
+            self.is_blocked = self.identity in self.blocked_ids
+            return True
+
+        if self.guest is None and self.user is None:
+            return False
+        if self.user is None:
+            return False  # guests only exist in meeting rooms
+
         uid = self.user.id
 
         if room.slot_id is not None:  # batch (group) room
@@ -191,19 +226,19 @@ class CallChatConsumer(AsyncWebsocketConsumer):
             return False
 
         self.is_host = room.advisor_id == uid
-        self.blocked_ids = set(room.chat_blocked_user_ids or [])
-        self.is_blocked = uid in self.blocked_ids
+        self.blocked_ids = {str(i) for i in (room.chat_blocked_user_ids or [])}
+        self.is_blocked = self.identity in self.blocked_ids
         return True
 
     @sync_to_async
     def _set_block(self, target_id, blocked):
         from calls.models import CallRoom
         room = CallRoom.objects.get(id=self.room_id)
-        ids = set(room.chat_blocked_user_ids or [])
+        ids = {str(i) for i in (room.chat_blocked_user_ids or [])}
         if blocked:
-            ids.add(target_id)
+            ids.add(str(target_id))
         else:
-            ids.discard(target_id)
+            ids.discard(str(target_id))
         room.chat_blocked_user_ids = list(ids)
         room.save(update_fields=["chat_blocked_user_ids", "updated_at"])
         return list(ids)
@@ -214,5 +249,6 @@ class CallChatConsumer(AsyncWebsocketConsumer):
         return CallMessage.objects.create(
             room_id=self.room_id,
             sender=self.user,
+            guest_sender=self.guest,
             text=text,
         )

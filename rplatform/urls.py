@@ -22,6 +22,7 @@ urlpatterns = [
     path("api/v1/ads/", include("ads.urls")),
     path("api/v1/companies/", include("companies.urls")),
     path("api/v1/calls/", include("calls.urls")),
+    path("api/v1/meetings/", include("meetings.urls")),
 ]
 
 if settings.DEBUG:

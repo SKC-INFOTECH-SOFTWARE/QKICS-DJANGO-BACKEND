@@ -12,14 +12,28 @@ class CallUserSerializer(serializers.ModelSerializer):
 
 
 class CallMessageSerializer(serializers.ModelSerializer):
-    sender   = CallUserSerializer(read_only=True)
-    file_url = serializers.SerializerMethodField()
-    is_mine  = serializers.SerializerMethodField()
+    sender      = CallUserSerializer(read_only=True)
+    file_url    = serializers.SerializerMethodField()
+    is_mine     = serializers.SerializerMethodField()
+    # Meeting guests have no User row — the client renders these two instead.
+    sender_id   = serializers.SerializerMethodField()
+    sender_name = serializers.CharField(source="sender_display_name", read_only=True)
+    is_guest    = serializers.BooleanField(read_only=True)
 
     class Meta:
         model            = CallMessage
-        fields           = ["id", "sender", "text", "file_url", "file_name", "file_size_bytes", "created_at", "is_mine"]
+        fields           = ["id", "sender", "sender_id", "sender_name", "is_guest",
+                            "text", "file_url", "file_name", "file_size_bytes",
+                            "created_at", "is_mine"]
         read_only_fields = fields
+
+    def get_sender_id(self, obj):
+        """Matches the LiveKit identity: user id, or "guest_<uuid>"."""
+        if obj.sender_id:
+            return str(obj.sender_id)
+        if obj.guest_sender_id:
+            return f"guest_{obj.guest_sender_id}"
+        return None
 
     def get_file_url(self, obj):
         if obj.file:
@@ -40,11 +54,14 @@ class CallRoomSerializer(serializers.ModelSerializer):
     duration_seconds = serializers.IntegerField(read_only=True)
     can_join         = serializers.SerializerMethodField()
     is_batch         = serializers.BooleanField(read_only=True)
+    is_meeting       = serializers.BooleanField(read_only=True)
+    meeting_title    = serializers.SerializerMethodField()
 
     class Meta:
         model            = CallRoom
         fields           = [
             "id", "status", "user", "advisor", "is_batch",
+            "is_meeting", "meeting_title",
             "scheduled_start", "scheduled_end",
             "started_at", "ended_at",
             "duration_seconds", "can_join", "created_at",
@@ -53,6 +70,9 @@ class CallRoomSerializer(serializers.ModelSerializer):
 
     def get_can_join(self, obj):
         return obj.can_join()
+
+    def get_meeting_title(self, obj):
+        return obj.meeting.title if obj.is_meeting else None
 
 
 class CallNoteSerializer(serializers.ModelSerializer):

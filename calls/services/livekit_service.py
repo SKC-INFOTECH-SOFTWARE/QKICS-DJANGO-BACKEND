@@ -130,14 +130,83 @@ def ensure_recording_started(call_room, trigger=""):
     threading.Thread(target=_work, daemon=True).start()
 
 
+def _resolve_identity(identity: str):
+    """Map a LiveKit identity to (user_id, guest_id).
+
+    Signed-in participants use their numeric user id; meeting guests use
+    ``guest_<uuid>`` (see meetings.models.MeetingGuest.livekit_identity).
+    """
+    if not identity:
+        return None, None
+    if identity.startswith("guest_"):
+        return None, identity[len("guest_"):]
+    try:
+        return int(identity), None
+    except (TypeError, ValueError):
+        return None, None
+
+
+def record_participant_joined(call_room, identity: str):
+    """Open an attendance row for this participant (idempotent per session)."""
+    from calls.models import CallParticipant
+
+    user_id, guest_id = _resolve_identity(identity)
+    if user_id is None and guest_id is None:
+        return
+
+    # Reuse a row that is still "open" so a duplicate webhook doesn't double-count.
+    existing = CallParticipant.objects.filter(
+        room=call_room, user_id=user_id, guest_id=guest_id, left_at__isnull=True
+    ).exists()
+    if existing:
+        return
+
+    try:
+        CallParticipant.objects.create(
+            room=call_room, user_id=user_id, guest_id=guest_id,
+            connection_id=identity[:100],
+        )
+    except Exception as e:
+        # A stale identity (deleted user/guest) must not break the webhook.
+        logger.warning("record_participant_joined [%s/%s]: %s", call_room.id, identity, e)
+
+
+def record_participant_left(call_room, identity: str):
+    from calls.models import CallParticipant
+
+    user_id, guest_id = _resolve_identity(identity)
+    if user_id is None and guest_id is None:
+        return
+
+    CallParticipant.objects.filter(
+        room=call_room, user_id=user_id, guest_id=guest_id, left_at__isnull=True
+    ).update(left_at=timezone.now())
+
+
 # ──────────────────────────────────────────────────────
 # TOKEN GENERATION
 # ──────────────────────────────────────────────────────
 
 def generate_participant_token(*, room_name: str, user) -> str:
     """
-    Generate LiveKit JWT for a participant.
+    Generate LiveKit JWT for a signed-in participant.
     Frontend connects with: room.connect(sfu_url, token)
+    """
+    return build_participant_token(
+        room_name=room_name,
+        identity=str(user.id),
+        display_name=user.get_full_name() or user.username,
+    )
+
+
+def build_participant_token(
+    *, room_name: str, identity: str, display_name: str, ttl_hours: int = 4
+) -> str:
+    """Token for any participant addressed by an explicit identity.
+
+    Used for meeting guests (identity ``guest_<uuid>``), whose display name is
+    what they typed on the pre-join screen. Host mute/remove work off `identity`,
+    so guests are controllable exactly like signed-in participants.
     """
     from livekit import api as lkapi
 
@@ -146,9 +215,9 @@ def generate_participant_token(*, room_name: str, user) -> str:
             api_key=settings.LIVEKIT_API_KEY,
             api_secret=settings.LIVEKIT_API_SECRET,
         )
-        .with_identity(str(user.id))
-        .with_name(user.get_full_name() or user.username)
-        .with_ttl(timedelta(hours=4))
+        .with_identity(identity)
+        .with_name(display_name)
+        .with_ttl(timedelta(hours=ttl_hours))
         .with_grants(lkapi.VideoGrants(
             room_join=True,
             room=room_name,
@@ -401,11 +470,17 @@ def start_room_recording(*, call_room, trigger="") -> str | None:
     try:
         info = _run(_start_egress_local(call_room.sfu_room_name, local_path))
 
+        # Retention is room-dependent: admin meeting recordings are kept for a
+        # shorter window than consultation calls. Setting delete_after here
+        # overrides the model default in CallRecording.save().
         recording = CallRecording.objects.create(
             room=call_room,
             status=CallRecording.STATUS_RECORDING,
             egress_id=info.egress_id,
             local_file_path=local_path,
+            delete_after=timezone.now() + timedelta(
+                days=call_room.recording_retention_days
+            ),
         )
 
         logger.info("Recording started: room=%s egress=%s", call_room.id, info.egress_id)
@@ -660,10 +735,25 @@ def handle_livekit_webhook(raw_body: bytes, auth_header: str):
         try:
             call_room = CallRoom.objects.get(sfu_room_name=room_name)
             ensure_recording_started(call_room, trigger=event_name)
+            if event_name == "participant_joined":
+                identity = getattr(getattr(event, "participant", None), "identity", "")
+                record_participant_joined(call_room, identity)
         except CallRoom.DoesNotExist:
             logger.warning("%s: no CallRoom for sfu_room_name=%s", event_name, room_name)
         except Exception as e:
             logger.error("%s handler [%s]: %s", event_name, room_name, e)
+
+    # ── Participant leaves → stamp left_at for the attendance log ──
+    elif event_name == "participant_left":
+        room_name = event.room.name
+        identity = getattr(getattr(event, "participant", None), "identity", "")
+        try:
+            call_room = CallRoom.objects.get(sfu_room_name=room_name)
+            record_participant_left(call_room, identity)
+        except CallRoom.DoesNotExist:
+            logger.warning("participant_left: no CallRoom for %s", room_name)
+        except Exception as e:
+            logger.error("participant_left handler [%s]: %s", room_name, e)
 
     # ── Room closed → mark ended only if the slot time has passed ──
     elif event_name == "room_finished":

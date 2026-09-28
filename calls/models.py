@@ -81,6 +81,22 @@ class CallRoom(models.Model):
     def is_batch(self):
         return self.slot_id is not None
 
+    @property
+    def is_meeting(self):
+        """True for an admin-created meeting-link room (see meetings.Meeting).
+
+        Such a room has no booking/user/slot; `advisor` is the admin host and
+        membership comes from the meeting's access mode + invites.
+        """
+        return hasattr(self, "meeting") and self.meeting is not None
+
+    @property
+    def recording_retention_days(self):
+        """Days a recording of this room is kept before the cleanup cron deletes it."""
+        if self.is_meeting:
+            return self.meeting.RECORDING_RETENTION_DAYS
+        return CallRecording.RETENTION_DAYS
+
     def can_join(self):
         if self.status == self.STATUS_ENDED:
             return False
@@ -92,7 +108,16 @@ class CallRoom(models.Model):
 class CallParticipant(models.Model):
     id   = models.BigAutoField(primary_key=True)
     room = models.ForeignKey(CallRoom, on_delete=models.CASCADE, related_name="participants")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="call_participations")
+    # Exactly one of `user` / `guest` is set. `guest` is only ever used by
+    # meeting-link rooms where someone joined without a Qkics account.
+    user = models.ForeignKey(
+        User, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="call_participations",
+    )
+    guest = models.ForeignKey(
+        "meetings.MeetingGuest", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="call_participations",
+    )
 
     joined_at     = models.DateTimeField(auto_now_add=True)
     left_at       = models.DateTimeField(null=True, blank=True)
@@ -107,6 +132,14 @@ class CallParticipant(models.Model):
         if self.left_at:
             return int((self.left_at - self.joined_at).total_seconds())
         return None
+
+    @property
+    def display_name(self):
+        if self.user_id:
+            return self.user.get_full_name() or self.user.username
+        if self.guest_id:
+            return self.guest.display_name
+        return "Unknown"
 
 
 class CallRecording(models.Model):
@@ -225,7 +258,15 @@ class RecordingEvent(models.Model):
 class CallMessage(models.Model):
     id     = models.BigAutoField(primary_key=True)
     room   = models.ForeignKey(CallRoom, on_delete=models.CASCADE, related_name="call_messages")
-    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_call_messages")
+    # Exactly one of `sender` / `guest_sender` is set — see CallParticipant.
+    sender = models.ForeignKey(
+        User, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="sent_call_messages",
+    )
+    guest_sender = models.ForeignKey(
+        "meetings.MeetingGuest", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="sent_call_messages",
+    )
 
     text            = models.TextField(blank=True)
     file            = models.FileField(upload_to="call_files/", blank=True, null=True)
@@ -239,7 +280,19 @@ class CallMessage(models.Model):
         indexes  = [models.Index(fields=["room", "created_at"])]
 
     def __str__(self):
-        return f"{self.sender.username}: {self.text[:40] or 'File'}"
+        return f"{self.sender_display_name}: {self.text[:40] or 'File'}"
+
+    @property
+    def sender_display_name(self):
+        if self.sender_id:
+            return self.sender.get_full_name() or self.sender.username
+        if self.guest_sender_id:
+            return self.guest_sender.display_name
+        return "Unknown"
+
+    @property
+    def is_guest(self):
+        return self.guest_sender_id is not None
 
 
 class CallNote(models.Model):

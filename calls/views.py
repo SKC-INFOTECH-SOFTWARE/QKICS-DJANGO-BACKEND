@@ -33,6 +33,13 @@ def _get_room_for_user(room_id, user):
     except CallRoom.DoesNotExist:
         return None
 
+    # Meeting-link room: the admin host, or anyone the meeting's access mode
+    # allows (see meetings.services.meeting_service.can_user_join).
+    if room.is_meeting:
+        from meetings.services.meeting_service import can_user_join
+        allowed, _ = can_user_join(room.meeting, user)
+        return room if allowed else None
+
     # Batch (group) room: the expert (advisor) or any user with a CONFIRMED
     # booking on this slot may join.
     if room.is_batch:
